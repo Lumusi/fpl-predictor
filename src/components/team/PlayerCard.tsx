@@ -11,6 +11,7 @@ interface PlayerCardProps {
   showImage?: boolean;
   compact?: boolean;
   className?: string;
+  highlight?: boolean;
 }
 
 export default function PlayerCard({ 
@@ -19,7 +20,8 @@ export default function PlayerCard({
   showRemove = true,
   showImage = false,
   compact = false,
-  className = ''
+  className = '',
+  highlight = false
 }: PlayerCardProps) {
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const [localImageError, setLocalImageError] = useState(false);
@@ -86,7 +88,7 @@ export default function PlayerCard({
     
     return (
       <div 
-        className={`relative ${isPitchView ? 'bg-transparent' : 'bg-white rounded-md shadow-md'} overflow-hidden w-24 h-24 ${className}`}
+        className={`relative ${isPitchView ? 'bg-transparent' : 'bg-white rounded-md shadow-md'} overflow-hidden w-24 h-24 ${highlight ? 'ring-2 ring-blue-500' : ''} ${className}`}
         style={{ 
           zIndex: isPitchView ? 4 : 1,
           backgroundColor: isPitchView ? 'transparent' : undefined
@@ -155,7 +157,7 @@ export default function PlayerCard({
   }
   
   return (
-    <div className={`relative bg-white rounded-md shadow-md overflow-hidden ${className}`}>
+    <div className={`relative bg-white rounded-md shadow-md overflow-hidden ${highlight ? 'ring-2 ring-blue-500' : ''} ${className}`}>
       {/* Player Image */}
       {showImage && (
         <div className="relative w-full h-32 flex justify-center items-center bg-gray-100">
