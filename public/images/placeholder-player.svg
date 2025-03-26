@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="140" viewBox="0 0 110 140" fill="none">
+  <rect width="110" height="140" fill="#EEEEEE"/>
+  <circle cx="55" cy="45" r="25" fill="#CCCCCC" stroke="#999999" stroke-width="2"/>
+  <path d="M30 140 V95 Q30 80 55 80 Q80 80 80 95 V140" fill="#CCCCCC" stroke="#999999" stroke-width="2"/>
+  <text x="55" y="120" font-family="Arial" font-size="12" text-anchor="middle" fill="#777777">Player</text>
+</svg> 

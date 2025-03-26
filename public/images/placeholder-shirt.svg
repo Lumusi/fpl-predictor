@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="66" height="66" viewBox="0 0 66 66" fill="none">
+  <rect width="66" height="66" fill="#EEEEEE"/>
+  <path d="M16 16 V50 H50 V16 H45 L33 26 L21 16 H16Z" fill="#CCCCCC" stroke="#999999" stroke-width="2"/>
+  <text x="33" y="42" font-family="Arial" font-size="10" text-anchor="middle" fill="#777777">Jersey</text>
+</svg> 

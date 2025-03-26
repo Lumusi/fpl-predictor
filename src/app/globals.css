@@ -24,3 +24,97 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Player card styling */
+.player-pitch-view img {
+  background-color: transparent !important;
+  isolation: isolate;
+  mix-blend-mode: normal;
+  object-fit: contain !important;
+  max-height: 100% !important;
+}
+
+.player-pitch-view {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+  z-index: 4;
+  background-color: transparent !important;
+  pointer-events: auto;
+}
+
+.player-pitch-view * {
+  background-color: transparent !important;
+}
+
+/* Player card container */
+.player-card-container {
+  position: relative;
+  z-index: 5;
+  background-color: transparent !important;
+}
+
+/* Style for the player remove button */
+.player-remove-btn {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Show the remove button on hover */
+.player-card-container:hover .player-remove-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Shadow effect for player info */
+.player-info-shadow {
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+}
+
+/* Transfer suggestion styling */
+.transfer-suggestion {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.transfer-suggestion:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Field container - minimal styling needed since we use image */
+.field-gradient {
+  position: relative;
+  width: 100%;
+  min-height: 700px;
+}
+
+/* Formation badge styling */
+.field-gradient .absolute.top-2.left-2 {
+  color: white !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* For Firefox */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
+}
