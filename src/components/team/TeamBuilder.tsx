@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useTeam } from '@/lib/contexts/TeamContext';
-import { POSITION_MAP, FORMATION_CONSTRAINTS, POSITION_ID_MAP } from '@/lib/utils/teamBuilder';
+import { FORMATION_CONSTRAINTS, POSITION_ID_MAP } from '@/lib/utils/teamBuilder';
 import PlayerCard from './PlayerCard';
-import { Disclosure, Tab } from '@headlessui/react';
-import { ChevronUpIcon } from '@heroicons/react/24/outline';
+import { Tab } from '@headlessui/react';
 import FieldView from './FieldView';
 
 function classNames(...classes: string[]) {
@@ -19,7 +18,6 @@ export default function TeamBuilder() {
     clearTeam, 
     remainingBudget, 
     teamCost,
-    isTeamComplete,
     loadingTeam,
     suggestions,
     getSuggestions
@@ -28,6 +26,7 @@ export default function TeamBuilder() {
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [viewType, setViewType] = useState<'list' | 'field'>('field');
   const [maxCost, setMaxCost] = useState<number>(15.0);
   const [sortBy, setSelectBy] = useState<'total_points' | 'price' | 'predicted_points'>('total_points');

@@ -80,8 +80,6 @@ export default function PlayerCard({
     FWD: 'bg-red-400'
   };
   
-  const positionColor = positionColors[player.position as keyof typeof positionColors] || 'bg-gray-400';
-  
   if (compact) {
     // Check if this is being used on the pitch view
     const isPitchView = className.includes('player-pitch-view');

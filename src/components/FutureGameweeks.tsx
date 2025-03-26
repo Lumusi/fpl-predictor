@@ -57,7 +57,7 @@ export default function FutureGameweeks({
         <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
           <li>Predictions are based on player form, fixtures, home/away advantage, and playing time</li>
           <li>Further gameweeks have less certainty, especially for rotation-risk players</li>
-          <li>These predictions don't account for injuries or team news announced after the last data update</li>
+          <li>These predictions don&apos;t account for injuries or team news announced after the last data update</li>
           <li>Refresh data regularly to get the most accurate predictions</li>
         </ul>
       </div>

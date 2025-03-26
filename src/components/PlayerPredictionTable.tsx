@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { predictPlayerPoints } from '@/lib/utils/predictions';
-import { Player } from '@/lib/services/fplApi';
 
 type PlayerPrediction = ReturnType<typeof predictPlayerPoints>[0] & {
   element_type?: number;

@@ -1,7 +1,17 @@
 import React from 'react';
 
+interface ErrorResponse {
+  message?: string; 
+  response?: { 
+    status?: number; 
+    statusText?: string; 
+  }
+}
+
+type ErrorType = Error | ErrorResponse;
+
 interface ErrorDisplayProps {
-  error: any;
+  error: ErrorType;
   onRetry?: () => void;
 }
 
@@ -9,8 +19,13 @@ export default function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
   // Extract useful information from the error object
   const errorMessage = error?.message || 'Unknown error occurred';
   const isNetworkError = errorMessage.toLowerCase().includes('network error');
-  const status = error?.response?.status;
-  const statusText = error?.response?.statusText;
+  
+  // Check if error has response property (ErrorResponse type)
+  const hasResponse = (err: ErrorType): err is ErrorResponse => 
+    typeof (err as ErrorResponse).response !== 'undefined';
+  
+  const status = hasResponse(error) ? error.response?.status : undefined;
+  const statusText = hasResponse(error) ? error.response?.statusText : undefined;
   
   return (
     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
@@ -35,7 +50,7 @@ export default function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
           {isNetworkError ? (
             <>
               The application is now using a server-side proxy to avoid CORS issues.
-              If you're still seeing this error, the FPL API might be temporarily unavailable or
+              If you&apos;re still seeing this error, the FPL API might be temporarily unavailable or
               there could be a network connection problem.
             </>
           ) : (

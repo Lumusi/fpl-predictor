@@ -15,7 +15,7 @@ interface FplData {
   teams: Team[];
   fixtures: Fixture[];
   loading: boolean;
-  error: any;
+  error: Error | null;
   currentGameweek: number;
   predictedPoints: ReturnType<typeof predictPlayerPoints>;
   futurePredictions: ReturnType<typeof predictFutureGameweeks>;

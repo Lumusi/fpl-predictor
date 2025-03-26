@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Player, Team } from '../services/fplApi';
+import { Player } from '../services/fplApi';
 import { 
   TeamPlayer, 
   TeamSuggestion, 

@@ -27,7 +27,7 @@ export default function TeamPage() {
           
           <div className="mt-4 p-3 bg-blue-50 text-blue-800 rounded-md">
             <p className="text-sm">
-              <strong>Note:</strong> This tool doesn't connect to your actual FPL account. It's a simulation to help you plan transfers and build a team based on our predictions.
+              <strong>Note:</strong> This tool doesn&apos;t connect to your actual FPL account. It&apos;s a simulation to help you plan transfers and build a team based on our predictions.
             </p>
           </div>
         </div>
