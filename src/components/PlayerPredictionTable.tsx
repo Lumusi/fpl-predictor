@@ -99,19 +99,19 @@ export default function PlayerPredictionTable({ predictions, loading, title }: P
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-light-background dark:bg-dark-card/50">
               <tr>
-                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-12 text-center">
+                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-12 text-center">
                   Rank
                 </th>
                 <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
                   Player
                 </th>
-                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
+                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
                   Pts
                 </th>
-                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
+                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
                   £
                 </th>
-                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-24 text-center">
+                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-24 text-center">
                   Form
                 </th>
               </tr>

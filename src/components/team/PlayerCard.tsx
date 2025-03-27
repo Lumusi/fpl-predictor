@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import { TeamPlayer } from '@/lib/utils/teamBuilder';
@@ -26,6 +26,7 @@ export default function PlayerCard({
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const [localImageError, setLocalImageError] = useState(false);
   const [plImageError, setPlImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   
   // Function to force refresh the image
   const refreshImage = (e: React.MouseEvent) => {
@@ -33,10 +34,10 @@ export default function PlayerCard({
     setRefreshKey(Date.now());
     setLocalImageError(false);
     setPlImageError(false);
+    setImageLoaded(false);
   };
 
   // Get the player code for image URLs - this is different from the player.id
-  // The code is used in the Premier League player photo URLs and our /players directory
   const playerImageId = player.code || player.id;
 
   // Local player image URL (from /players directory)
@@ -73,6 +74,11 @@ export default function PlayerCard({
   if (imageUrl !== placeholderImageUrl) {
     imageUrl = `${imageUrl}?key=${refreshKey}`;
   }
+
+  // Handle successful image load
+  const handleImageLoaded = () => {
+    setImageLoaded(true);
+  };
   
   // Position-based colors for the warning icons
   const positionColors = {
@@ -97,23 +103,32 @@ export default function PlayerCard({
         {/* Player Image */}
         {showImage && (
           <div className={`relative w-full h-full flex justify-center items-center bg-transparent`}>
-            <Image
-              src={imageUrl}
-              alt={player.web_name}
-              width={isPitchView ? 100 : 80}
-              height={isPitchView ? 100 : 80}
-              className={`object-contain ${isPitchView ? 'drop-shadow-xl' : ''}`}
-              priority={isPitchView}
-              unoptimized={true}
-              style={{ 
-                height: 'auto', 
-                maxWidth: '100%',
-                filter: isPitchView ? 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' : 'none',
-                backgroundColor: 'transparent',
-                backgroundImage: 'none'
-              }}
-              onError={localImageError ? handlePlImageError : handleLocalImageError}
-            />
+            <div className={`${imageLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 w-full h-full`}>
+              <Image
+                src={imageUrl}
+                alt={player.web_name}
+                width={isPitchView ? 100 : 80}
+                height={isPitchView ? 100 : 80}
+                className={`object-contain ${isPitchView ? 'drop-shadow-xl' : ''}`}
+                loading="lazy"
+                onLoadingComplete={handleImageLoaded}
+                priority={false}
+                unoptimized={true}
+                style={{ 
+                  height: 'auto', 
+                  maxWidth: '100%',
+                  filter: isPitchView ? 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' : 'none',
+                  backgroundColor: 'transparent',
+                  backgroundImage: 'none'
+                }}
+                onError={localImageError ? handlePlImageError : handleLocalImageError}
+              />
+            </div>
+            {!imageLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+                <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+              </div>
+            )}
             {!isPitchView && (
               <button 
                 onClick={refreshImage}
@@ -161,17 +176,26 @@ export default function PlayerCard({
       {/* Player Image */}
       {showImage && (
         <div className="relative w-full h-32 flex justify-center items-center bg-gray-100">
-          <Image
-            src={imageUrl}
-            alt={player.web_name}
-            width={120}
-            height={120}
-            className="object-contain"
-            priority={false}
-            unoptimized={true}
-            style={{ height: 'auto', maxWidth: '100%' }}
-            onError={localImageError ? handlePlImageError : handleLocalImageError}
-          />
+          <div className={`${imageLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 w-full h-full flex items-center justify-center`}>
+            <Image
+              src={imageUrl}
+              alt={player.web_name}
+              width={120}
+              height={120}
+              className="object-contain"
+              loading="lazy"
+              onLoadingComplete={handleImageLoaded}
+              priority={false}
+              unoptimized={true}
+              style={{ height: 'auto', maxWidth: '100%' }}
+              onError={localImageError ? handlePlImageError : handleLocalImageError}
+            />
+          </div>
+          {!imageLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+            </div>
+          )}
           <button 
             onClick={refreshImage}
             className="absolute bottom-0 right-0 p-1 text-gray-500 hover:text-blue-500 bg-white bg-opacity-70 rounded-tl-md"
@@ -201,37 +225,26 @@ export default function PlayerCard({
           </div>
         </div>
         
-        {/* Player Stats */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="text-center">
-            <div className="font-medium text-gray-500">Points</div>
-            <div className="font-bold">{player.total_points || '-'}</div>
-          </div>
-          <div className="text-center">
-            <div className="font-medium text-gray-500">Form</div>
-            <div className="font-bold">{player.form || '-'}</div>
-          </div>
-          <div className="text-center">
-            <div className="font-medium text-gray-500">Predicted</div>
-            <div className="font-bold text-blue-600">
-              {player.predicted_points ? player.predicted_points.toFixed(1) : '-'}
+        {/* Other player info as needed */}
+        <div className="text-xs text-gray-500 flex justify-between">
+          <div>{player.total_points || 0} points</div>
+          {player.predicted_points && (
+            <div className="text-green-600 font-medium">
+              Predicted: {player.predicted_points.toFixed(1)}
             </div>
-          </div>
+          )}
         </div>
+        
+        {/* Remove button */}
+        {showRemove && onRemove && (
+          <button
+            onClick={onRemove}
+            className="mt-2 w-full py-1 bg-red-50 text-red-600 text-xs font-medium rounded border border-red-100 hover:bg-red-100 transition-colors"
+          >
+            Remove
+          </button>
+        )}
       </div>
-      
-      {/* Remove Button */}
-      {showRemove && onRemove && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="absolute top-0 right-0 p-1.5 text-red-500 hover:text-red-700"
-        >
-          <XCircleIcon className="h-5 w-5" />
-        </button>
-      )}
     </div>
   );
 } 

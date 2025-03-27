@@ -49,6 +49,49 @@ body {
   color: var(--text-secondary);
 }
 
+/* Performance optimization - reduce animations on mobile */
+@media (max-width: 640px) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* Reduce costly transitions on mobile */
+  body {
+    transition: none;
+  }
+  
+  .player-remove-btn {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  
+  /* Optimize image rendering on mobile */
+  img {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+}
+
+/* Hardware acceleration for all devices */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 /* Player card styling */
 .player-pitch-view img {
   background-color: transparent !important;
@@ -56,6 +99,7 @@ body {
   mix-blend-mode: normal;
   object-fit: contain !important;
   max-height: 100% !important;
+  transform: translateZ(0); /* GPU acceleration */
 }
 
 .player-pitch-view {
@@ -63,6 +107,7 @@ body {
   z-index: 4;
   background-color: transparent !important;
   pointer-events: auto;
+  backface-visibility: hidden; /* GPU acceleration */
 }
 
 .player-pitch-view * {
@@ -74,6 +119,7 @@ body {
   position: relative;
   z-index: 5;
   background-color: transparent !important;
+  transform: translateZ(0); /* GPU acceleration */
 }
 
 /* Style for the player remove button */
@@ -110,7 +156,16 @@ body {
 .field-gradient {
   position: relative;
   width: 100%;
-  min-height: 700px;
+  min-height: 550px; /* Reduced for mobile */
+  background-size: cover !important; /* Better mobile performance */
+  background-position: center !important;
+  will-change: transform; /* GPU acceleration hint */
+}
+
+@media (min-width: 768px) {
+  .field-gradient {
+    min-height: 700px;
+  }
 }
 
 /* Formation badge styling */
@@ -141,4 +196,52 @@ body {
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
+}
+
+/* Prevent layout shifts during image loading */
+.image-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.image-container.loaded img {
+  opacity: 1;
+}
+
+.image-container:not(.loaded) img {
+  opacity: 0;
+}
+
+.image-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark .image-placeholder {
+  background-color: #1f2937;
+}
+
+/* Optimize list rendering for mobile */
+.optimized-list {
+  contain: content;
+  content-visibility: auto;
+}
+
+.optimized-list > * {
+  contain: layout;
+}
+
+/* Reduce paint operations */
+.paint-optimization {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform, opacity;
 }
