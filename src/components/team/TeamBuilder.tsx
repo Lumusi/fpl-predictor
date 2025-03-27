@@ -110,12 +110,12 @@ export default function TeamBuilder() {
   // Function to render the player selection sidebar
   const renderPlayerSelection = () => {
     return (
-      <div className="p-4 bg-gradient-to-b from-teal-400 to-teal-500 rounded-lg h-full">
+      <div className="p-4 bg-gradient-to-b from-teal-400 to-teal-500 dark:from-blue-700 dark:to-blue-800 rounded-lg h-full">
         <div className="mb-4">
           <h3 className="text-white font-semibold text-lg mb-3">Player Selection</h3>
           <div className="flex flex-col gap-3">
             <select 
-              className="w-full p-2.5 rounded-md border border-gray-300 text-gray-700"
+              className="w-full p-2.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700"
               value={selectedPosition || ''}
               onChange={(e) => setSelectedPosition(e.target.value || null)}
             >
@@ -127,7 +127,7 @@ export default function TeamBuilder() {
             </select>
             
             <select 
-              className="w-full p-2.5 rounded-md border border-gray-300 text-gray-700"
+              className="w-full p-2.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700"
               value={sortBy}
               onChange={(e) => setSelectBy(e.target.value as any)}
             >
@@ -146,7 +146,7 @@ export default function TeamBuilder() {
                   step="0.1" 
                   value={maxCost} 
                   onChange={(e) => setMaxCost(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-white rounded-lg appearance-none cursor-pointer"
+                  className="w-full h-2 bg-white dark:bg-slate-600 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="flex justify-between text-xs text-white mt-1">
                   <span>£0.5m</span>
@@ -159,7 +159,7 @@ export default function TeamBuilder() {
               <input
                 type="text"
                 placeholder="Search for player..."
-                className="w-full p-2.5 pl-9 rounded-md border border-gray-300 text-gray-700"
+                className="w-full p-2.5 pl-9 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -170,7 +170,7 @@ export default function TeamBuilder() {
           </div>
         </div>
         
-        <div className="bg-teal-100 rounded-md p-2.5 text-center font-medium">
+        <div className="bg-teal-100 dark:bg-blue-900/30 rounded-md p-2.5 text-center font-medium text-teal-800 dark:text-blue-200">
           {sortedPlayers.length} players shown
         </div>
         
@@ -178,50 +178,37 @@ export default function TeamBuilder() {
           {Object.entries(playersByPosition).map(([position, players]) => (
             players.length > 0 && (
               <div key={position} className="mb-4">
-                <div className="bg-purple-700 text-white px-3 py-2 rounded-t-md font-medium flex justify-between items-center">
+                <div className="bg-purple-700 dark:bg-blue-800 text-white px-3 py-2 rounded-t-md font-medium flex justify-between items-center">
                   <span>
                     {position === 'GKP' ? 'Goalkeepers' : 
                      position === 'DEF' ? 'Defenders' : 
                      position === 'MID' ? 'Midfielders' : 'Forwards'}
                   </span>
-                  <span className="text-xs bg-purple-600 px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-purple-600 dark:bg-blue-700 px-2 py-0.5 rounded-full">
                     {players.length}
                   </span>
                 </div>
-                <div className="bg-white rounded-b-md overflow-hidden">
+                <div className="bg-white dark:bg-slate-800 rounded-b-md overflow-hidden">
                   {players.slice(0, 15).map(player => (
                     <div 
                       key={player.id} 
-                      className="border-b border-gray-100 p-2.5 flex items-center cursor-pointer hover:bg-gray-50"
+                      className="border-b border-gray-100 dark:border-slate-700 p-2.5 flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
                       onClick={() => handleAddPlayer(player.id)}
                     >
                       <div className="flex-1 min-w-0 mr-2">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-gray-900 dark:text-white truncate">
                           {player.web_name}
                         </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-700 font-medium">
-                            {player.team_short_name}
-                          </span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded text-white font-medium ${
-                            player.position === 'GKP' ? 'bg-yellow-500' : 
-                            player.position === 'DEF' ? 'bg-blue-500' : 
-                            player.position === 'MID' ? 'bg-green-500' : 'bg-red-500'
-                          }`}>
-                            {player.position}
-                          </span>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                          {player.team_short_name}
                         </div>
                       </div>
-                      <div className="flex flex-col items-center px-1 w-10">
-                        <div className="text-xs text-gray-500">Pts</div>
-                        <div className="text-sm font-semibold text-purple-700">
-                          {player.total_points}
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-800 dark:text-gray-200">
+                          £{((player.now_cost || 0) / 10).toFixed(1)}m
                         </div>
-                      </div>
-                      <div className="flex flex-col items-end px-1 w-14">
-                        <div className="text-xs text-gray-500">Cost</div>
-                        <div className="text-sm font-semibold">
-                          £{((player.now_cost || 0) / 10).toFixed(1)}
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {player.total_points} pts
                         </div>
                       </div>
                     </div>
@@ -335,149 +322,180 @@ export default function TeamBuilder() {
   }
   
   return (
-    <div className="container mx-auto py-4">
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        {/* Remove the entire TeamBuilder header */}
-        
-        {/* Team Status Bar - Position this at the top instead */}
-        <div className="p-4 bg-gradient-to-r from-green-500 to-teal-500 text-white flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col">
-              <span className="text-sm">Budget Remaining</span>
-              <span className="text-xl font-bold">£{remainingBudget.toFixed(1)}m</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm">Team Value</span>
-              <span className="text-xl font-bold">£{teamCost.toFixed(1)}m</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
+    <div className="w-full">
+      {errorMessage && (
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md mb-4">
+          {errorMessage}
+        </div>
+      )}
+      
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Your Team</h2>
+          <div className="flex space-x-2">
             <button
               onClick={clearTeam}
-              className="bg-white/20 text-white px-4 py-2 rounded hover:bg-white/30 transition-colors"
+              className="px-3 py-1.5 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-md text-sm transition-colors"
             >
               Clear Team
             </button>
             <button
-              onClick={() => getSuggestions()}
-              className="bg-white text-green-600 px-4 py-2 rounded hover:bg-white/90 transition-colors font-medium"
-              disabled={myTeam.length === 0}
+              onClick={getSuggestions}
+              disabled={myTeam.length < 1}
+              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                myTeam.length < 1
+                ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                : 'bg-purple-600 dark:bg-blue-600 text-white hover:bg-purple-700 dark:hover:bg-blue-700'
+              }`}
             >
-              Get Suggestions
+              Generate Suggestions
             </button>
           </div>
         </div>
         
-        <div className="p-4">
-          <Tab.Group>
-            <Tab.List className="flex space-x-1 rounded-xl bg-blue-50 p-1 mb-4">
-              <Tab
-                className={({ selected }) =>
-                  classNames(
-                    'w-full py-3 text-sm font-medium',
-                    'focus:outline-none',
-                    selected
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-500 hover:bg-gray-100'
-                  )
-                }
-                onClick={() => setViewType('field')}
-              >
-                Pitch View
-              </Tab>
-              <Tab
-                className={({ selected }) =>
-                  classNames(
-                    'w-full py-3 text-sm font-medium',
-                    'focus:outline-none',
-                    selected
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-500 hover:bg-gray-100'
-                  )
-                }
-                onClick={() => setViewType('list')}
-              >
-                List
-              </Tab>
-            </Tab.List>
-            <Tab.Panels>
-              <Tab.Panel>
-                {/* Field View with side panel - Adjusted layout to make player selection wider */}
-                <div className="flex flex-col lg:flex-row">
-                  <div className="w-full lg:w-2/3 p-4 bg-transparent">
-                    {myTeam.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg min-h-[700px] flex items-center justify-center">
-                        <div>
-                          <div className="text-xl font-medium mb-2">Your team is empty</div>
-                          <div>Add players from the selection panel to build your team.</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <Tab.Group>
+              <Tab.List className="flex space-x-1 rounded-xl bg-blue-50 dark:bg-slate-700 p-1 mb-4">
+                <Tab
+                  className={({ selected }) =>
+                    classNames(
+                      'w-full rounded-lg py-2 text-sm font-medium leading-5 text-blue-700 dark:text-white',
+                      'focus:outline-none focus:ring-2 ring-offset-2 ring-offset-blue-400 ring-white ring-opacity-60',
+                      selected
+                        ? 'bg-white dark:bg-slate-900 shadow'
+                        : 'text-blue-500 dark:text-blue-200 hover:bg-white/[0.12] dark:hover:bg-slate-800/[0.50]'
+                    )
+                  }
+                >
+                  Team View
+                </Tab>
+                <Tab
+                  className={({ selected }) =>
+                    classNames(
+                      'w-full rounded-lg py-2 text-sm font-medium leading-5 text-blue-700 dark:text-white',
+                      'focus:outline-none focus:ring-2 ring-offset-2 ring-offset-blue-400 ring-white ring-opacity-60',
+                      selected
+                        ? 'bg-white dark:bg-slate-900 shadow'
+                        : 'text-blue-500 dark:text-blue-200 hover:bg-white/[0.12] dark:hover:bg-slate-800/[0.50]'
+                    )
+                  }
+                >
+                  List View
+                </Tab>
+              </Tab.List>
+              <Tab.Panels>
+                <Tab.Panel>
+                  <FieldView team={myTeam} onRemovePlayer={removePlayer} />
+                </Tab.Panel>
+                <Tab.Panel>
+                  <div className="space-y-6">
+                    {Object.entries(teamByPosition).map(([position, players]) => (
+                      <div key={position}>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-gray-800 dark:text-white">
+                            {position === 'GKP' ? 'Goalkeepers' : 
+                             position === 'DEF' ? 'Defenders' : 
+                             position === 'MID' ? 'Midfielders' : 'Forwards'}
+                          </h3>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            {players.length}/{FORMATION_CONSTRAINTS[position as keyof typeof FORMATION_CONSTRAINTS].max}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {players.map(player => (
+                            <div 
+                              key={player.id}
+                              className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-md"
+                            >
+                              <div>
+                                <div className="font-medium text-gray-800 dark:text-white">{player.web_name}</div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">{player.team_short_name}</div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <div className="font-semibold text-gray-800 dark:text-gray-200">£{((player.now_cost || 0) / 10).toFixed(1)}m</div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">{player.total_points} pts</div>
+                                </div>
+                                <button
+                                  onClick={() => removePlayer(player.id)}
+                                  className="p-1 rounded-full bg-gray-200 dark:bg-slate-600 hover:bg-gray-300 dark:hover:bg-slate-500 text-gray-500 dark:text-gray-300"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          {players.length === 0 && (
+                            <div className="p-3 bg-gray-50 dark:bg-slate-700 rounded-md text-gray-500 dark:text-gray-400 text-center">
+                              No {position === 'GKP' ? 'goalkeeper' : position === 'DEF' ? 'defender' : position === 'MID' ? 'midfielder' : 'forward'} selected
+                            </div>
+                          )}
                         </div>
                       </div>
-                    ) : (
-                      <div className="min-h-[700px] bg-transparent">
-                        <FieldView 
-                          team={myTeam} 
-                          onRemovePlayer={removePlayer}
-                        />
+                    ))}
+                  </div>
+                </Tab.Panel>
+              </Tab.Panels>
+            </Tab.Group>
+            
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-md text-blue-800 dark:text-blue-300">
+              <div className="flex justify-between items-center">
+                <div>Team Cost:</div>
+                <div className="font-semibold">£{teamCost.toFixed(1)}m</div>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>Budget Remaining:</div>
+                <div className="font-semibold">£{remainingBudget.toFixed(1)}m</div>
+              </div>
+            </div>
+            
+            {suggestions.length > 0 && (
+              <div className="mt-6">
+                <h3 className="font-bold text-gray-800 dark:text-white mb-3">Transfer Suggestions</h3>
+                <div className="space-y-3">
+                  {suggestions.map((suggestion, index) => (
+                    <div key={index} className="p-3 bg-green-50 dark:bg-green-900/30 rounded-md">
+                      <div className="text-sm text-green-800 dark:text-green-300 mb-2">
+                        <span className="font-semibold">Suggested Transfer:</span> {`+${suggestion.pointsImprovement.toFixed(1)} points (${suggestion.costDifference > 0 ? '+' : ''}${suggestion.costDifference.toFixed(1)}m)`}
                       </div>
-                    )}
-                  </div>
-                  <div className="w-full lg:w-1/3 p-4">
-                    {renderPlayerSelection()}
-                  </div>
-                </div>
-              </Tab.Panel>
-              <Tab.Panel>
-                {/* List View */}
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Current Team (£{teamCost.toFixed(1)}m)</h3>
-                  
-                  {myTeam.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-                      <div className="text-xl font-medium mb-2">Your team is empty</div>
-                      <div>Add players below to build your team.</div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {/* Group by position */}
-                      {Object.entries(teamByPosition).map(([position, players]) => (
-                        <div key={position}>
-                          <h4 className="text-lg font-semibold text-gray-700 mb-3">
-                            {position} ({players.length}/{FORMATION_CONSTRAINTS[position as keyof typeof FORMATION_CONSTRAINTS].max})
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-                            {players.map(player => (
-                              <PlayerCard
-                                key={player.id}
-                                player={player}
-                                onRemove={() => removePlayer(player.id)}
-                                showImage={true}
-                              />
-                            ))}
+                      <div className="flex items-center">
+                        <div className="flex-1 flex items-center">
+                          <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded mr-2">
+                            <span className="text-red-800 dark:text-red-300 font-medium">OUT</span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-800 dark:text-gray-200">{suggestion.playerOut.web_name}</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{suggestion.playerOut.team_short_name}</div>
                           </div>
                         </div>
-                      ))}
+                        <div className="px-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 flex items-center">
+                          <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded mr-2">
+                            <span className="text-green-800 dark:text-green-300 font-medium">IN</span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-800 dark:text-gray-200">{suggestion.playerIn.web_name}</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{suggestion.playerIn.team_short_name}</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  
-                  <div className="mt-8">
-                    <h3 className="text-xl font-bold text-gray-800 mb-4">Add Players</h3>
-                    {renderPlayerSelection()}
-                  </div>
+                  ))}
                 </div>
-              </Tab.Panel>
-            </Tab.Panels>
-          </Tab.Group>
+              </div>
+            )}
+          </div>
           
-          {errorMessage && (
-            <div className="mx-4 mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-              {errorMessage}
-            </div>
-          )}
-        </div>
-        
-        {/* Transfer Suggestions Section - Now below the main content */}
-        <div className="p-4">
-          {renderTransferSuggestions()}
+          <div className="bg-gray-50 dark:bg-slate-900 rounded-lg">
+            {renderPlayerSelection()}
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { TeamProvider } from "@/lib/contexts/TeamContext";
+import { TeamProvider } from "../lib/contexts/TeamContext";
+import { ThemeProvider } from "next-themes";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -16,11 +17,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <TeamProvider>
-          {children}
-        </TeamProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} min-h-screen bg-light-background text-light-text-primary dark:bg-dark-background dark:text-dark-text-primary transition-colors duration-300`}>
+        <ThemeProvider 
+          attribute="class"
+          defaultTheme="system"
+          enableSystem={true}
+          disableTransitionOnChange={false}
+          storageKey="theme"
+        >
+          <TeamProvider>
+            {children}
+          </TeamProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

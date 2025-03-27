@@ -1,178 +1,178 @@
 import React, { useState } from 'react';
-import { predictPlayerPoints } from '@/lib/utils/predictions';
-
-type PlayerPrediction = ReturnType<typeof predictPlayerPoints>[0] & {
-  element_type?: number;
-  position?: string;
-};
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { PlayerPrediction } from '@/lib/utils/predictions';
 
 interface PlayerPredictionTableProps {
   predictions: PlayerPrediction[];
-  title?: string;
-  loading?: boolean;
+  loading: boolean;
 }
 
-export default function PlayerPredictionTable({ 
-  predictions, 
-  title = "Predicted Points for Next Gameweek", 
-  loading = false 
-}: PlayerPredictionTableProps) {
-  const [positionFilter, setPositionFilter] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [limit, setLimit] = useState(25);
+export default function PlayerPredictionTable({ predictions, loading }: PlayerPredictionTableProps) {
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
-  const positions = [
-    { id: 1, name: 'GKP' },
-    { id: 2, name: 'DEF' },
-    { id: 3, name: 'MID' },
-    { id: 4, name: 'FWD' }
+  // Filter predictions by position
+  const filteredPredictions = predictions.filter(prediction => {
+    // Filter by position if selected
+    const matchesPosition = !selectedPosition || prediction.position === selectedPosition;
+    
+    // Filter by search query (player name or team)
+    const matchesSearch = prediction.web_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (prediction.team_short_name && prediction.team_short_name.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    return matchesPosition && matchesSearch;
+  });
+  
+  // Skeleton loader for when data is loading
+  const TableSkeleton = () => (
+    <div className="animate-pulse">
+      <div className="h-10 bg-gray-200 dark:bg-dark-card rounded-md mb-4 w-full"></div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="h-16 bg-gray-200 dark:bg-dark-card rounded-md mb-2 w-full"></div>
+      ))}
+    </div>
+  );
+  
+  // If loading, show skeleton
+  if (loading) {
+    return (
+      <div className="p-4">
+        <TableSkeleton />
+      </div>
+    );
+  }
+  
+  // Position buttons for filtering
+  const positionButtons = [
+    { label: 'All', value: null },
+    { label: 'GKP', value: 'GKP' },
+    { label: 'DEF', value: 'DEF' },
+    { label: 'MID', value: 'MID' },
+    { label: 'FWD', value: 'FWD' },
   ];
   
-  // Filter predictions based on position and search term
-  const filteredPredictions = predictions
-    .filter(player => {
-      // Enhanced position filtering
-      const matchesPosition = positionFilter === null || 
-                             player.element_type === positionFilter ||
-                             (player.position && player.position === positions.find(p => p.id === positionFilter)?.name);
-      
-      const matchesSearch = searchTerm === '' || 
-                          player.web_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (player.team_short_name && player.team_short_name.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      return matchesPosition && matchesSearch;
-    })
-    .slice(0, limit);
-  
   return (
-    <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
-      <div className="p-4 bg-blue-600 text-white">
-        <h2 className="text-xl font-bold">{title}</h2>
-        
-        <div className="mt-3 flex flex-wrap gap-3">
-          {/* Position filter buttons */}
-          <div className="flex space-x-1">
-            <button
-              className={`px-3 py-1 text-sm rounded-md ${positionFilter === null 
-                ? 'bg-white text-blue-600 font-bold' 
-                : 'bg-blue-700 text-white'}`}
-              onClick={() => setPositionFilter(null)}
-            >
-              ALL
-            </button>
-            
-            {positions.map(position => (
-              <button
-                key={position.id}
-                className={`px-3 py-1 text-sm rounded-md ${positionFilter === position.id 
-                  ? 'bg-white text-blue-600 font-bold' 
-                  : 'bg-blue-700 text-white'}`}
-                onClick={() => setPositionFilter(position.id)}
-              >
-                {position.name}
-              </button>
-            ))}
-          </div>
-          
-          {/* Search input */}
-          <div className="flex-grow">
-            <input
-              type="text"
-              placeholder="Search player or team..."
-              className="w-full px-3 py-1 text-sm bg-white text-gray-900 rounded-md"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
+    <div className="w-full bg-light-card dark:bg-dark-card rounded-lg shadow-md overflow-hidden">
+      <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-800 dark:to-blue-700 text-white">
+        <h2 className="text-lg font-bold">Player Predictions</h2>
+        <p className="text-sm text-blue-100">Predicted points for the next gameweek</p>
       </div>
       
-      {loading ? (
-        <div className="p-8 flex justify-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
+      <div className="p-4">
+        {/* Position filter buttons */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {positionButtons.map(button => (
+            <button
+              key={button.label}
+              onClick={() => setSelectedPosition(button.value)}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                selectedPosition === button.value 
+                ? 'bg-light-card text-light-accent-primary font-bold shadow-sm dark:bg-dark-background dark:text-dark-accent-secondary'
+                : 'bg-blue-700/50 text-white hover:bg-blue-700/70 dark:bg-dark-accent-primary/50 dark:hover:bg-dark-accent-primary/70'
+              }`}
+            >
+              {button.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 table-fixed">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                    Player
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                    Pos
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                    Team
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                    Price
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                    Form
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                    Fixture
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                    Predicted
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPredictions.length > 0 ? (
-                  filteredPredictions.map(player => (
-                    <tr key={player.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 truncate">{player.web_name}</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">{player.position || (player.element_type ? positions.find(p => p.id === player.element_type)?.name : '')}</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">{player.team_short_name}</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">£{player.price.toFixed(1)}m</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">{player.form}</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className={`inline-flex px-2 text-xs font-semibold rounded-full 
-                          ${player.home_game ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {player.home_game ? 'H' : 'A'} ({player.fixture_difficulty})
+        
+        {/* Search input */}
+        <div className="mb-4 relative">
+          <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1.5 text-gray-400 dark:text-gray-500" />
+          <input
+            type="text"
+            placeholder="Search by player or team..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 px-3 py-1 text-sm bg-light-card dark:bg-dark-background text-light-text-primary dark:text-dark-text-primary rounded-md border border-transparent focus:border-light-accent-primary dark:focus:border-dark-accent-primary focus:ring-0 transition-colors"
+          />
+        </div>
+        
+        {/* Results count */}
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
+          Showing {filteredPredictions.length} players
+        </p>
+        
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-light-background dark:bg-dark-card/50">
+              <tr>
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-12 text-center">
+                  Rank
+                </th>
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
+                  Player
+                </th>
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
+                  Pts
+                </th>
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
+                  £
+                </th>
+                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-24 text-center">
+                  Form
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-light-card dark:bg-dark-card divide-y divide-gray-200 dark:divide-slate-700">
+              {filteredPredictions.map((player, index) => (
+                <tr 
+                  key={player.id} 
+                  className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+                >
+                  <td className="px-3 py-4 whitespace-nowrap text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
+                    {index + 1}
+                  </td>
+                  <td className="px-3 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="ml-0">
+                        <div className="flex items-center">
+                          <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary">
+                            {player.web_name}
+                          </div>
+                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            player.home_game 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500'
+                          }`}>
+                            {player.home_game ? 'H' : 'A'}
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-sm font-bold text-blue-600">{player.predicted_points.toFixed(1)}</div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                      No players found matching the selected criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {limit < predictions.length && filteredPredictions.length > 0 && (
-            <div className="p-4 border-t border-gray-200 flex justify-center">
-              <button 
-                className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-md"
-                onClick={() => setLimit(prev => prev + 25)}
-              >
-                Load more
-              </button>
-            </div>
-          )}
-        </>
-      )}
+                        <div className="flex items-center space-x-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                          <span>{player.team_short_name}</span>
+                          <span>•</span>
+                          <span className="font-medium">{player.position}</span>
+                          {player.fixture_difficulty && (
+                            <>
+                              <span>•</span>
+                              <span>Difficulty: {player.fixture_difficulty}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-4 whitespace-nowrap text-center">
+                    <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{player.predicted_points.toFixed(1)}</div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{player.total_points} total</div>
+                  </td>
+                  <td className="px-3 py-4 whitespace-nowrap text-center">
+                    <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary">£{player.price.toFixed(1)}m</div>
+                  </td>
+                  <td className="px-3 py-4 whitespace-nowrap text-center">
+                    <button 
+                      className="px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-300 rounded-md transition-colors"
+                    >
+                      View Stats
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 } 

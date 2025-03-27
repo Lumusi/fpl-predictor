@@ -1,7 +1,7 @@
 import { Player, Team, Fixture } from '../services/fplApi';
 import { POSITION_MAP } from './teamBuilder';
 
-interface PlayerPrediction {
+export interface PlayerPrediction {
   id: number;
   web_name: string;
   team: number;
@@ -33,7 +33,7 @@ export function predictPlayerPoints(
   const nextGameweekFixtures = fixtures.filter(fixture => fixture.event === gameweek);
   
   const predictions: PlayerPrediction[] = players
-    .filter(player => player.minutes > 0) // Only consider players who have played
+    // Including all players, even those with 0 minutes
     .map(player => {
       // Get player's team
       const playerTeam = teams.find(team => team.id === player.team);
@@ -83,8 +83,9 @@ export function predictPlayerPoints(
         predictedPoints *= 1.1; // 10% boost for home games
       }
       
-      // Playing time probability adjustment
-      const minutesFactor = Math.min(player.minutes / 900, 1); // Cap at 1
+      // Playing time probability adjustment - consider minutes played
+      // For players with 0 minutes, we'll use a low but non-zero factor
+      const minutesFactor = player.minutes > 0 ? Math.min(player.minutes / 900, 1) : 0.1; // Cap at 1
       predictedPoints *= (0.7 + (0.3 * minutesFactor));
       
       // Injury/availability adjustment
