@@ -5,9 +5,10 @@ import { PlayerPrediction } from '@/lib/utils/predictions';
 interface PlayerPredictionTableProps {
   predictions: PlayerPrediction[];
   loading: boolean;
+  title?: string;
 }
 
-export default function PlayerPredictionTable({ predictions, loading }: PlayerPredictionTableProps) {
+export default function PlayerPredictionTable({ predictions, loading, title }: PlayerPredictionTableProps) {
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -54,7 +55,7 @@ export default function PlayerPredictionTable({ predictions, loading }: PlayerPr
   return (
     <div className="w-full bg-light-card dark:bg-dark-card rounded-lg shadow-md overflow-hidden">
       <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-800 dark:to-blue-700 text-white">
-        <h2 className="text-lg font-bold">Player Predictions</h2>
+        <h2 className="text-lg font-bold">{title || "Player Predictions"}</h2>
         <p className="text-sm text-blue-100">Predicted points for the next gameweek</p>
       </div>
       
