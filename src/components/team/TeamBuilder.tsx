@@ -1,9 +1,12 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, Fragment } from 'react';
 import { useTeam } from '@/lib/contexts/TeamContext';
 import { FORMATION_CONSTRAINTS, POSITION_ID_MAP } from '@/lib/utils/teamBuilder';
 import PlayerCard from './PlayerCard';
 import { Tab } from '@headlessui/react';
 import FieldView from './FieldView';
+import { XMarkIcon, ArrowsRightLeftIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import { Popover, Transition } from '@headlessui/react';
+import { TeamPlayer, TeamSuggestion } from '@/lib/utils/teamBuilder';
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
@@ -19,6 +22,7 @@ export default function TeamBuilder() {
     remainingBudget, 
     teamCost,
     loadingTeam,
+    loadingSuggestions,
     suggestions,
     getSuggestions
   } = useTeam();
@@ -32,6 +36,10 @@ export default function TeamBuilder() {
   const [sortBy, setSelectBy] = useState<'total_points' | 'price' | 'predicted_points'>('total_points');
   const [currentPage, setCurrentPage] = useState(1);
   const playersPerPage = 20; // Reduce the number of players shown at once
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedPlayerForSwap, setSelectedPlayerForSwap] = useState<TeamPlayer | null>(null);
+  const [playerSpecificSuggestions, setPlayerSpecificSuggestions] = useState<TeamSuggestion[]>([]);
+  const [loadingPlayerSuggestions, setLoadingPlayerSuggestions] = useState(false);
   
   // Group players by position - memoized to prevent recalculation
   const teamByPosition = useMemo(() => {
@@ -80,7 +88,10 @@ export default function TeamBuilder() {
     return allFormattedPlayers.filter(player => {
       const matchesSearch = 
         player.web_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        player.team_short_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        player.team_short_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (player.first_name && player.first_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (player.second_name && player.second_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (player.team_name && player.team_name.toLowerCase().includes(searchTerm.toLowerCase()));
       
       // Fix position filtering by checking element_type and position
       const matchesPosition = !selectedPosition || 
@@ -141,16 +152,62 @@ export default function TeamBuilder() {
     }
   };
   
+  // Function to get player-specific suggestions
+  const getPlayerSuggestions = useCallback(async (player: TeamPlayer) => {
+    if (!player || !allFormattedPlayers.length) return;
+    
+    setSelectedPlayerForSwap(player);
+    setLoadingPlayerSuggestions(true);
+    
+    try {
+      // Find available players of the same position who are not in the team
+      const availableReplacements = allFormattedPlayers.filter(p => 
+        p.position === player.position && 
+        p.id !== player.id && 
+        !myTeam.some(teamPlayer => teamPlayer.id === p.id)
+      );
+      
+      // Sort by predicted points (highest first)
+      const sortedReplacements = [...availableReplacements].sort((a, b) => 
+        (b.predicted_points || 0) - (a.predicted_points || 0)
+      );
+      
+      // Take up to 5 players with better predicted points than the current player
+      const betterPlayers = sortedReplacements
+        .filter(p => (p.predicted_points || 0) > (player.predicted_points || 0))
+        .slice(0, 5);
+      
+      // If we don't have 5 better players, just take the top 5 anyway
+      const suggestions = betterPlayers.length >= 3 
+        ? betterPlayers 
+        : sortedReplacements.slice(0, 5);
+      
+      // Format as TeamSuggestion objects
+      const formattedSuggestions = suggestions.map(suggestion => ({
+        playerOut: player,
+        playerIn: suggestion,
+        pointsImprovement: (suggestion.predicted_points || 0) - (player.predicted_points || 0),
+        costDifference: ((suggestion.now_cost || 0) / 10) - ((player.now_cost || 0) / 10)
+      }));
+      
+      setPlayerSpecificSuggestions(formattedSuggestions);
+    } catch (error) {
+      console.error("Error getting player suggestions:", error);
+    } finally {
+      setLoadingPlayerSuggestions(false);
+    }
+  }, [allFormattedPlayers, myTeam]);
+  
   // Function to render the player selection sidebar
   const renderPlayerSelection = () => {
     return (
-      <div className="p-4 bg-gradient-to-b from-teal-400 to-teal-500 dark:from-blue-700 dark:to-blue-800 rounded-lg h-full">
-        <div className="mb-4">
-          <h3 className="text-white font-semibold text-lg mb-3">Player Selection</h3>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col md:flex-row gap-2">
+      <div className="p-2 bg-gradient-to-b from-blue-700 to-blue-800 rounded-lg h-full max-w-[270px] w-full ml-auto">
+        <div className="mb-2">
+          <h3 className="text-white font-semibold text-lg mb-2">Player Selection</h3>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <select 
-                className="w-full p-2 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-sm"
+                className="w-full p-1.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-xs"
                 value={selectedPosition || ''}
                 onChange={(e) => {
                   setSelectedPosition(e.target.value || null);
@@ -165,7 +222,7 @@ export default function TeamBuilder() {
               </select>
               
               <select 
-                className="w-full p-2 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-sm"
+                className="w-full p-1.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-xs"
                 value={sortBy}
                 onChange={(e) => {
                   setSelectBy(e.target.value as any);
@@ -179,7 +236,7 @@ export default function TeamBuilder() {
             </div>
             
             <div className="flex flex-col">
-              <label className="text-white text-sm mb-1">Max cost: £{maxCost}m</label>
+              <label className="text-white text-xs mb-1">Max cost: £{maxCost}m</label>
               <div className="w-full">
                 <input 
                   type="range" 
@@ -201,191 +258,394 @@ export default function TeamBuilder() {
             </div>
             
             <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </div>
               <input
                 type="text"
-                placeholder="Search for player..."
-                className="w-full p-2 pl-9 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-sm"
+                placeholder="Search by player name or team (full/short name)..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(1); // Reset to first page on search
+                  setCurrentPage(1); // Reset to first page on search change
                 }}
+                className="w-full pl-8 pr-3 py-1.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-2.5 top-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
             </div>
           </div>
         </div>
         
-        <div className="bg-teal-100 dark:bg-blue-900/30 rounded-md p-2 text-center font-medium text-teal-800 dark:text-blue-200 text-sm">
-          {sortedPlayers.length} players | Page {currentPage} of {totalPages || 1}
-        </div>
-        
-        {/* Pagination controls */}
-        {totalPages > 1 && (
-          <div className="flex justify-between items-center mt-2 mb-3 text-white">
-            <button 
-              onClick={handlePrevPage} 
+        <div className="border-t border-white/20 pt-2 mb-1">
+          <div className="flex justify-between items-center">
+            <span className="text-white text-xs">{filteredPlayers.length} players</span>
+            <span className="text-white text-xs">Page {currentPage}/{totalPages}</span>
+          </div>
+          
+          <div className="bg-white/10 rounded-md p-1 mt-1 max-h-[60vh] overflow-y-auto" id="player-list">
+            {currentPlayers.length > 0 ? (
+              <div className="grid grid-cols-1 gap-1">
+                {currentPlayers.map((player) => (
+                  <div 
+                    key={player.id} 
+                    className="bg-white dark:bg-slate-700 rounded-md p-1.5 flex justify-between items-center text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-600"
+                    onClick={() => handleAddPlayer(player.id)}
+                  >
+                    <div className="flex items-center">
+                      <div className={`w-3 h-3 rounded-full mr-1 flex-shrink-0 ${
+                        player.position === 'GKP' ? 'bg-yellow-500' :
+                        player.position === 'DEF' ? 'bg-blue-500' :
+                        player.position === 'MID' ? 'bg-green-500' :
+                        'bg-red-500'
+                      }`}></div>
+                      <div>
+                        <div className="font-medium text-gray-800 dark:text-white">{player.web_name}</div>
+                        <div className="text-gray-500 dark:text-gray-300 text-xs flex items-center">
+                          <span>{player.team_short_name}</span>
+                          <span className="mx-1">•</span>
+                          <span>{player.position}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <div className="font-medium text-gray-800 dark:text-white">£{(player.now_cost || 0) / 10}m</div>
+                      <div className="text-gray-500 dark:text-gray-300 text-xs">
+                        {sortBy === 'predicted_points' 
+                          ? `${player.predicted_points?.toFixed(1) || 0} pts` 
+                          : `${player.total_points || 0} pts`}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-white">
+                No players match your filters
+              </div>
+            )}
+          </div>
+          
+          {/* Pagination controls */}
+          <div className="flex justify-between mt-2">
+            <button
+              onClick={handlePrevPage}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded-md text-sm ${
-                currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-600 dark:hover:bg-blue-600'
+              className={`px-2 py-1 rounded-md text-xs ${
+                currentPage === 1 
+                  ? 'bg-white/30 text-white/70 cursor-not-allowed' 
+                  : 'bg-white text-blue-600 hover:bg-blue-50'
               }`}
             >
               Previous
             </button>
-            <span className="text-sm">
-              {startIndex + 1}-{Math.min(endIndex, sortedPlayers.length)} of {sortedPlayers.length}
-            </span>
-            <button 
-              onClick={handleNextPage} 
+            
+            <button
+              onClick={handleNextPage}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded-md text-sm ${
-                currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-600 dark:hover:bg-blue-600'
+              className={`px-2 py-1 rounded-md text-xs ${
+                currentPage === totalPages 
+                  ? 'bg-white/30 text-white/70 cursor-not-allowed' 
+                  : 'bg-white text-blue-600 hover:bg-blue-50'
               }`}
             >
               Next
             </button>
-          </div>
-        )}
-        
-        <div id="player-list" className="mt-2 overflow-y-auto max-h-[calc(100vh-325px)] md:max-h-[calc(100vh-250px)] scrollbar-thin scrollbar-thumb-white scrollbar-track-transparent">
-          {/* Simplified player list - don't group by position anymore to reduce DOM elements */}
-          <div className="mb-4">
-            <div className="bg-white dark:bg-slate-800 rounded-md overflow-hidden">
-              {currentPlayers.length > 0 ? (
-                currentPlayers.map(player => (
-                  <div 
-                    key={player.id} 
-                    className="border-b border-gray-100 dark:border-slate-700 p-2 flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700"
-                    onClick={() => handleAddPlayer(player.id)}
-                  >
-                    <div className="flex-1 min-w-0 mr-2">
-                      <div className="font-medium text-gray-900 dark:text-white truncate flex items-center">
-                        {player.web_name}
-                        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300">
-                          {player.position}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {player.team_short_name}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-800 dark:text-gray-200 text-sm">
-                        £{((player.now_cost || 0) / 10).toFixed(1)}m
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {player.predicted_points ? (
-                          <span className="text-green-600 dark:text-green-400">{player.predicted_points.toFixed(1)} pts</span>
-                        ) : (
-                          <span>{player.total_points} pts</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No players match your filters
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
     );
   };
   
-  // Function to render the transfer suggestions section
-  const renderTransferSuggestions = () => {
+  // Function to render the swap/transfer icon that opens the suggestions popup
+  const renderTransferButton = () => {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-        <div className="bg-blue-500 text-white p-3 flex justify-between items-center">
-          <h2 className="text-lg font-bold">Transfer Suggestions</h2>
-          <button 
-            onClick={getSuggestions}
-            className="bg-white text-blue-600 hover:bg-blue-50 px-3 py-1 rounded text-sm font-medium transition-colors"
-          >
-            Generate Suggestions
-          </button>
-        </div>
-        
-        <div className="p-3">
-          {suggestions && suggestions.length > 0 ? (
-            <div className="space-y-3">
-              {suggestions.map((suggestion, index) => (
-                <div key={index} className="bg-gray-50 dark:bg-slate-700 rounded-lg p-3 border border-gray-200 dark:border-slate-600">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Suggested Transfer #{index + 1}</div>
-                    <div className="flex items-center gap-2">
-                      <span className="bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300 px-2 py-0.5 rounded text-xs font-medium">
-                        +{suggestion.pointsImprovement.toFixed(1)} pts
-                      </span>
-                      <span className={`${suggestion.costDifference > 0 ? 'bg-red-100 dark:bg-red-800/50 text-red-800 dark:text-red-300' : 'bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300'} px-2 py-0.5 rounded text-xs font-medium`}>
-                        {suggestion.costDifference > 0 ? '+' : ''}{suggestion.costDifference.toFixed(1)}m
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row items-center gap-2">
-                    <div className="w-full sm:w-1/2 bg-white dark:bg-slate-800 rounded-md p-2 border border-red-200 dark:border-red-800/50">
-                      <div className="text-red-600 dark:text-red-400 text-xs font-semibold uppercase mb-1">TRANSFER OUT</div>
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 mr-2 relative overflow-hidden">
-                          <PlayerCard 
-                            player={suggestion.playerOut} 
-                            showRemove={false}
-                            showImage={true}
-                            compact={true}
-                          />
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">{suggestion.playerOut.web_name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {suggestion.playerOut.team_short_name} • {suggestion.playerOut.position} • 
-                            £{((suggestion.playerOut.now_cost || 0) / 10).toFixed(1)}m • 
-                            {suggestion.playerOut.predicted_points?.toFixed(1) || 0} pts
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="hidden sm:block text-gray-400">→</div>
-                    <div className="block sm:hidden text-gray-400">↓</div>
-                    
-                    <div className="w-full sm:w-1/2 bg-white dark:bg-slate-800 rounded-md p-2 border border-green-200 dark:border-green-800/50">
-                      <div className="text-green-600 dark:text-green-400 text-xs font-semibold uppercase mb-1">TRANSFER IN</div>
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 mr-2 relative overflow-hidden">
-                          <PlayerCard 
-                            player={suggestion.playerIn} 
-                            showRemove={false}
-                            showImage={true}
-                            compact={true}
-                          />
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">{suggestion.playerIn.web_name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {suggestion.playerIn.team_short_name} • {suggestion.playerIn.position} • 
-                            £{((suggestion.playerIn.now_cost || 0) / 10).toFixed(1)}m • 
-                            {suggestion.playerIn.predicted_points?.toFixed(1) || 0} pts
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+      <Popover className="relative">
+        {({ open }) => (
+          <>
+            <Popover.Button
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors
+                ${open 
+                  ? 'bg-blue-700 text-white' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                }
+                ${myTeam.length < 1 || loadingSuggestions
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+                }
+              `}
+              disabled={myTeam.length < 1 || loadingSuggestions}
+              onClick={() => {
+                if (suggestions.length === 0 && !loadingSuggestions) {
+                  console.log("Getting suggestions for transfer button");
+                  getSuggestions();
+                }
+              }}
+            >
+              <ArrowsRightLeftIcon className="h-4 w-4" />
+              <span>Transfer Ideas</span>
+            </Popover.Button>
+
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-200"
+              enterFrom="opacity-0 translate-y-1"
+              enterTo="opacity-100 translate-y-0"
+              leave="transition ease-in duration-150"
+              leaveFrom="opacity-100 translate-y-0"
+              leaveTo="opacity-0 translate-y-1"
+            >
+              <Popover.Panel className="absolute right-0 z-10 mt-2 w-96 origin-top-right rounded-md bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                <div className="bg-blue-500 dark:bg-blue-700 text-white p-3 rounded-t-md flex justify-between items-center">
+                  <h3 className="text-sm font-medium">Suggested Transfers</h3>
+                  <Popover.Button className="p-1 rounded-full hover:bg-blue-600 transition-colors">
+                    <XMarkIcon className="h-4 w-4" />
+                  </Popover.Button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-              Click the button above to generate transfer suggestions based on predicted points.
-            </div>
-          )}
-        </div>
-      </div>
+                
+                <div className="max-h-[60vh] overflow-y-auto p-3">
+                  {loadingSuggestions ? (
+                    <div className="text-center py-6">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-600 mb-2"></div>
+                      <p className="text-gray-600 dark:text-gray-300 text-sm">Finding better options...</p>
+                    </div>
+                  ) : suggestions.length === 0 ? (
+                    <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                      <p className="mb-3">No transfer suggestions found.</p>
+                      <button
+                        onClick={() => getSuggestions()}
+                        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-xs transition-colors"
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {suggestions.map((suggestion, index) => (
+                        <div key={index} className="bg-gray-50 dark:bg-slate-700 rounded-md p-2.5 border border-gray-200 dark:border-slate-600">
+                          <div className="flex justify-between items-center mb-1.5">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Suggestion #{index + 1}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300 px-1.5 py-0.5 rounded text-xs font-medium">
+                                +{suggestion.pointsImprovement.toFixed(1)} pts
+                              </span>
+                              <span className={`${suggestion.costDifference > 0 ? 'bg-red-100 dark:bg-red-800/50 text-red-800 dark:text-red-300' : 'bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300'} px-1.5 py-0.5 rounded text-xs font-medium`}>
+                                {suggestion.costDifference > 0 ? '+' : ''}{suggestion.costDifference.toFixed(1)}m
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            {/* Player Out */}
+                            <div className="flex-1 bg-white dark:bg-slate-800 rounded p-1.5 border border-red-100 dark:border-red-900/30">
+                              <div className="text-xs text-red-600 dark:text-red-400 font-medium">OUT</div>
+                              <div className="flex items-center mt-1">
+                                <div className="mr-2">
+                                  <img 
+                                    src={`/images/players/${suggestion.playerOut.code}.png`} 
+                                    alt={suggestion.playerOut.web_name}
+                                    className="w-8 h-8 object-cover rounded-full" 
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src = '/images/player-placeholder.png';
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-medium">{suggestion.playerOut.web_name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {suggestion.playerOut.position} • {((suggestion.playerOut.now_cost || 0) / 10).toFixed(1)}m
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <ArrowRightIcon className="h-4 w-4 text-gray-400" />
+                            
+                            {/* Player In */}
+                            <div className="flex-1 bg-white dark:bg-slate-800 rounded p-1.5 border border-green-100 dark:border-green-900/30">
+                              <div className="text-xs text-green-600 dark:text-green-400 font-medium">IN</div>
+                              <div className="flex items-center mt-1">
+                                <div className="mr-2">
+                                  <img 
+                                    src={`/images/players/${suggestion.playerIn.code}.png`} 
+                                    alt={suggestion.playerIn.web_name}
+                                    className="w-8 h-8 object-cover rounded-full" 
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).src = '/images/player-placeholder.png';
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-medium">{suggestion.playerIn.web_name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {suggestion.playerIn.position} • {((suggestion.playerIn.now_cost || 0) / 10).toFixed(1)}m
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-1.5 text-xs text-blue-800 dark:text-blue-300">
+                            <span className="font-medium">Prediction:</span> {suggestion.playerIn.predicted_points?.toFixed(1) || '?'} pts vs {suggestion.playerOut.predicted_points?.toFixed(1) || '?'} pts
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Popover.Panel>
+            </Transition>
+          </>
+        )}
+      </Popover>
+    );
+  };
+  
+  // New function to render the player swap button
+  const renderPlayerSwapButton = (player: TeamPlayer) => {
+    return (
+      <Popover className="relative">
+        {({ open, close }) => (
+          <>
+            <Popover.Button 
+              className={`p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors ${
+                open ? 'bg-blue-100 dark:bg-blue-900/30' : ''
+              }`}
+              onClick={() => {
+                // Always reload suggestions when opening the popover
+                setSelectedPlayerForSwap(player);
+                setLoadingPlayerSuggestions(true);
+                
+                // Find available players of the same position who are not in the team
+                const availableReplacements = allFormattedPlayers.filter(p => 
+                  p.position === player.position && 
+                  p.id !== player.id && 
+                  !myTeam.some(teamPlayer => teamPlayer.id === p.id)
+                );
+                
+                // Sort by predicted points (highest first)
+                const sortedReplacements = [...availableReplacements].sort((a, b) => 
+                  (b.predicted_points || 0) - (a.predicted_points || 0)
+                );
+                
+                // Take up to 5 players with better predicted points than the current player
+                const betterPlayers = sortedReplacements
+                  .filter(p => (p.predicted_points || 0) > (player.predicted_points || 0))
+                  .slice(0, 5);
+                
+                // If we don't have 5 better players, just take the top 5 anyway
+                const suggestions = betterPlayers.length >= 3 
+                  ? betterPlayers 
+                  : sortedReplacements.slice(0, 5);
+                
+                // Format as TeamSuggestion objects
+                const formattedSuggestions = suggestions.map(suggestion => ({
+                  playerOut: player,
+                  playerIn: suggestion,
+                  pointsImprovement: (suggestion.predicted_points || 0) - (player.predicted_points || 0),
+                  costDifference: ((suggestion.now_cost || 0) / 10) - ((player.now_cost || 0) / 10)
+                }));
+                
+                setPlayerSpecificSuggestions(formattedSuggestions);
+                setLoadingPlayerSuggestions(false);
+              }}
+            >
+              <ArrowsRightLeftIcon className="h-3.5 w-3.5" />
+            </Popover.Button>
+            
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-200"
+              enterFrom="opacity-0 translate-y-1"
+              enterTo="opacity-100 translate-y-0"
+              leave="transition ease-in duration-150"
+              leaveFrom="opacity-100 translate-y-0"
+              leaveTo="opacity-0 translate-y-1"
+            >
+              <Popover.Panel className="absolute z-10 mt-1 w-[260px] origin-top-right rounded-md bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none right-0">
+                <div className="bg-blue-500 dark:bg-blue-700 text-white p-2 rounded-t-md flex justify-between items-center">
+                  <h3 className="text-xs font-medium">Replace {player.web_name}</h3>
+                  <Popover.Button className="p-1 rounded-full hover:bg-blue-600 transition-colors">
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                  </Popover.Button>
+                </div>
+                
+                <div className="p-2 max-h-[400px] overflow-y-auto">
+                  {loadingPlayerSuggestions ? (
+                    <div className="text-center py-4">
+                      <div className="inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-600 mb-2"></div>
+                      <p className="text-gray-600 dark:text-gray-300 text-xs">Finding better options...</p>
+                    </div>
+                  ) : playerSpecificSuggestions.length === 0 ? (
+                    <div className="text-center py-3 text-gray-500 dark:text-gray-400 text-xs">
+                      <p>No better players found for this position.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {playerSpecificSuggestions.map((suggestion, index) => (
+                        <div 
+                          key={index} 
+                          className="bg-gray-50 dark:bg-slate-700 rounded p-2 border border-gray-200 dark:border-slate-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          onClick={() => {
+                            // First remove the current player
+                            removePlayer(player.id);
+                            
+                            // Then add the new player
+                            handleAddPlayer(suggestion.playerIn.id);
+                            
+                            // Close the popover
+                            close();
+                          }}
+                        >
+                          <div className="flex items-center mb-1">
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <img 
+                                  src={`/images/players/${suggestion.playerIn.code}.png`}
+                                  alt={suggestion.playerIn.web_name}
+                                  className="w-6 h-6 object-cover rounded-full mr-1.5"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = '/images/player-placeholder.png';
+                                  }}
+                                />
+                                <div className="text-xs font-medium">{suggestion.playerIn.web_name}</div>
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {suggestion.playerIn.team_short_name} • {suggestion.playerIn.position}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs font-medium">£{((suggestion.playerIn.now_cost || 0) / 10).toFixed(1)}m</div>
+                              <div className="text-xs text-green-600 dark:text-green-400">
+                                {suggestion.playerIn.predicted_points?.toFixed(1) || 0} pts
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-xs mb-1.5">
+                            <span className={`${suggestion.pointsImprovement > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {suggestion.pointsImprovement > 0 ? '+' : ''}{suggestion.pointsImprovement.toFixed(1)} pts
+                            </span>
+                            <span className={`${suggestion.costDifference > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                              {suggestion.costDifference > 0 ? '+' : ''}{suggestion.costDifference.toFixed(1)}m
+                            </span>
+                          </div>
+                          
+                          <button 
+                            className="w-full py-1 px-2 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                          >
+                            Make Transfer
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Popover.Panel>
+            </Transition>
+          </>
+        )}
+      </Popover>
     );
   };
   
@@ -415,22 +675,12 @@ export default function TeamBuilder() {
             >
               Clear Team
             </button>
-            <button
-              onClick={getSuggestions}
-              disabled={myTeam.length < 1}
-              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                myTeam.length < 1
-                ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
-                : 'bg-purple-600 dark:bg-blue-600 text-white hover:bg-purple-700 dark:hover:bg-blue-700'
-              }`}
-            >
-              Generate Suggestions
-            </button>
+            {renderTransferButton()}
           </div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 sm:gap-6">
+          <div className="lg:max-w-full overflow-x-auto">
             <Tab.Group>
               <Tab.List className="flex space-x-1 rounded-xl bg-blue-50 dark:bg-slate-700 p-1 mb-4">
                 <Tab
@@ -462,7 +712,139 @@ export default function TeamBuilder() {
               </Tab.List>
               <Tab.Panels>
                 <Tab.Panel>
-                  <FieldView team={myTeam} onRemovePlayer={removePlayer} />
+                  <FieldView 
+                    team={myTeam} 
+                    onRemovePlayer={removePlayer} 
+                    onSwapPlayer={(player) => {
+                      // Set the current player for suggestions
+                      setSelectedPlayerForSwap(player);
+                      setLoadingPlayerSuggestions(true);
+                      
+                      // Find available players of the same position who are not in the team
+                      const availableReplacements = allFormattedPlayers.filter(p => 
+                        p.position === player.position && 
+                        p.id !== player.id && 
+                        !myTeam.some(teamPlayer => teamPlayer.id === p.id)
+                      );
+                      
+                      // Sort by predicted points (highest first)
+                      const sortedReplacements = [...availableReplacements].sort((a, b) => 
+                        (b.predicted_points || 0) - (a.predicted_points || 0)
+                      );
+                      
+                      // Take up to 5 players with better predicted points than the current player
+                      const betterPlayers = sortedReplacements
+                        .filter(p => (p.predicted_points || 0) > (player.predicted_points || 0))
+                        .slice(0, 5);
+                      
+                      // If we don't have 5 better players, just take the top 5 anyway
+                      const suggestions = betterPlayers.length >= 3 
+                        ? betterPlayers 
+                        : sortedReplacements.slice(0, 5);
+                      
+                      // Format as TeamSuggestion objects
+                      const formattedSuggestions = suggestions.map(suggestion => ({
+                        playerOut: player,
+                        playerIn: suggestion,
+                        pointsImprovement: (suggestion.predicted_points || 0) - (player.predicted_points || 0),
+                        costDifference: ((suggestion.now_cost || 0) / 10) - ((player.now_cost || 0) / 10)
+                      }));
+                      
+                      setPlayerSpecificSuggestions(formattedSuggestions);
+                      setLoadingPlayerSuggestions(false);
+                      
+                      // Show a popup with player suggestions - create a modal or overlay
+                      // directly instead of trying to trigger Popover from here
+                      setShowSuggestions(true);
+                    }}
+                  />
+                  
+                  {/* Add a modal for swap suggestions when triggered from the field view */}
+                  {showSuggestions && selectedPlayerForSwap && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+                        <div className="bg-blue-500 dark:bg-blue-700 text-white p-3 rounded-t-lg flex justify-between items-center">
+                          <h3 className="font-medium">Replace {selectedPlayerForSwap.web_name}</h3>
+                          <button 
+                            onClick={() => setShowSuggestions(false)}
+                            className="p-1 rounded-full hover:bg-blue-600 transition-colors"
+                          >
+                            <XMarkIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                        
+                        <div className="p-4 max-h-[70vh] overflow-y-auto">
+                          {loadingPlayerSuggestions ? (
+                            <div className="text-center py-6">
+                              <div className="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-600 mb-2"></div>
+                              <p className="text-gray-600 dark:text-gray-300">Finding better options...</p>
+                            </div>
+                          ) : playerSpecificSuggestions.length === 0 ? (
+                            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                              <p>No better players found for this position.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {playerSpecificSuggestions.map((suggestion, index) => (
+                                <div 
+                                  key={index} 
+                                  className="bg-gray-50 dark:bg-slate-700 rounded p-3 border border-gray-200 dark:border-slate-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  onClick={() => {
+                                    removePlayer(selectedPlayerForSwap.id);
+                                    handleAddPlayer(suggestion.playerIn.id);
+                                    setShowSuggestions(false);
+                                  }}
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-center">
+                                        <img 
+                                          src={`/images/players/${suggestion.playerIn.code}.png`}
+                                          alt={suggestion.playerIn.web_name}
+                                          className="w-8 h-8 object-cover rounded-full mr-2"
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).src = '/images/player-placeholder.png';
+                                          }}
+                                        />
+                                        <div>
+                                          <div className="font-medium">{suggestion.playerIn.web_name}</div>
+                                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            {suggestion.playerIn.team_short_name} • {suggestion.playerIn.position}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                      <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        suggestion.pointsImprovement > 0 
+                                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
+                                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                                      }`}>
+                                        {suggestion.pointsImprovement > 0 ? '+' : ''}{suggestion.pointsImprovement.toFixed(1)} pts
+                                      </div>
+                                      <div className={`mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        suggestion.costDifference > 0 
+                                          ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' 
+                                          : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                                      }`}>
+                                        {suggestion.costDifference > 0 ? '+' : ''}{suggestion.costDifference.toFixed(1)}m
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <button 
+                                    className="w-full py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors text-sm"
+                                  >
+                                    Make Transfer
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </Tab.Panel>
                 <Tab.Panel>
                   <div className="space-y-4">
@@ -488,11 +870,17 @@ export default function TeamBuilder() {
                                 <div className="font-medium text-gray-800 dark:text-white text-sm">{player.web_name}</div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">{player.team_short_name}</div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
                                 <div className="text-right">
                                   <div className="font-semibold text-gray-800 dark:text-gray-200 text-sm">£{((player.now_cost || 0) / 10).toFixed(1)}m</div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">{player.total_points} pts</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {player.predicted_points 
+                                      ? <span className="text-green-600 dark:text-green-400">{player.predicted_points.toFixed(1)} pts</span>
+                                      : <span>{player.total_points} pts</span>
+                                    }
+                                  </div>
                                 </div>
+                                {renderPlayerSwapButton(player)}
                                 <button
                                   onClick={() => removePlayer(player.id)}
                                   className="p-1 rounded-full bg-gray-200 dark:bg-slate-600 hover:bg-gray-300 dark:hover:bg-slate-500 text-gray-500 dark:text-gray-300"
@@ -527,12 +915,6 @@ export default function TeamBuilder() {
                 <div className="font-semibold">£{remainingBudget.toFixed(1)}m</div>
               </div>
             </div>
-            
-            {suggestions.length > 0 && (
-              <div className="mt-4 md:hidden">
-                {renderTransferSuggestions()}
-              </div>
-            )}
           </div>
           
           <div className="bg-gray-50 dark:bg-slate-900 rounded-lg">
@@ -542,4 +924,4 @@ export default function TeamBuilder() {
       </div>
     </div>
   );
-} 
+}

@@ -32,6 +32,8 @@ export interface TeamPlayer {
   id: number;
   code?: number;   // The player code used in the Premier League photos URL
   web_name: string;
+  first_name?: string; // Player's first name
+  second_name?: string; // Player's surname/last name
   now_cost?: number;  // in 0.1m units
   position: string;   // GKP, DEF, MID, FWD
   element_type: number; // 1, 2, 3, 4
@@ -74,7 +76,9 @@ export function formatPlayerForTeam(player: Player, teams: Team[]): TeamPlayer {
     team_short_name: team?.short_name,
     price: player.now_cost ? player.now_cost / 10 : 0,
     home_game: isHomeGame,
-    code: player.code // Explicitly include code property for player images
+    code: player.code, // Explicitly include code property for player images
+    first_name: player.first_name, // Include first name
+    second_name: player.second_name // Include last name
   };
   
   return formattedPlayer;
@@ -125,63 +129,171 @@ export function getSuggestedTransfers(
   budget: number = 0, // Additional budget available
   limit: number = 5
 ): TeamSuggestion[] {
-  const suggestions: TeamSuggestion[] = [];
-  const alreadySuggestedOutPlayerIds = new Set<number>();
-  
-  // For each player in the team
-  currentTeam.forEach(currentPlayer => {
-    // Skip players that have already been suggested for replacement
-    if (alreadySuggestedOutPlayerIds.has(currentPlayer.id)) return;
-    
-    // Find potential replacements of the same position
-    const potentialReplacements = allPlayers.filter(player => 
-      // Must be same position
-      player.position === currentPlayer.position &&
-      // Must not be the same player
-      player.id !== currentPlayer.id && 
-      // Must not already be in the team
-      !currentTeam.some(teamPlayer => teamPlayer.id === player.id) &&
-      // Ensure the team constraint is maintained
-      (player.team === currentPlayer.team || 
-        currentTeam.filter(p => p.team === player.team).length < MAX_PLAYERS_FROM_SAME_TEAM)
-    );
-    
-    // Sort replacements by predicted points
-    potentialReplacements.sort((a, b) => 
-      (b.predicted_points || 0) - (a.predicted_points || 0)
-    );
-    
-    // Find valid replacements within budget
-    potentialReplacements.forEach(replacement => {
-      const costDifference = replacement.price - currentPlayer.price;
-      const pointsImprovement = (replacement.predicted_points || 0) - (currentPlayer.predicted_points || 0);
-      
-      // Only suggest if it's an improvement and within budget
-      if (pointsImprovement > 0 && costDifference <= budget) {
-        suggestions.push({
-          playerOut: currentPlayer,
-          playerIn: replacement,
-          pointsImprovement,
-          costDifference
-        });
-        
-        // Mark this player as already suggested for replacement
-        alreadySuggestedOutPlayerIds.add(currentPlayer.id);
-        
-        // Stop after finding a good replacement for this player
-        return;
-      }
+  try {
+    // Reduce logging to prevent console spam
+    console.log("getSuggestedTransfers called with:", {
+      teamSize: currentTeam.length,
+      allPlayersSize: allPlayers.length,
+      budget: budget,
+      limit: limit
     });
-  });
-  
-  // Sort by points improvement and return limited number
-  return suggestions
-    .sort((a, b) => b.pointsImprovement - a.pointsImprovement)
-    .slice(0, limit);
+
+    // Validate inputs to prevent issues
+    if (!currentTeam || currentTeam.length === 0 || !allPlayers || allPlayers.length === 0) {
+      console.log("Invalid inputs for getSuggestedTransfers");
+      return [];
+    }
+
+    const suggestions: TeamSuggestion[] = [];
+    const alreadySuggestedOutPlayerIds = new Set<number>();
+    
+    // Sort the team to prioritize players without predictions
+    const sortedTeam = [...currentTeam].sort((a, b) => {
+      // Players with no predictions come first
+      if ((a.predicted_points === undefined || a.predicted_points === 0) && 
+          (b.predicted_points !== undefined && b.predicted_points > 0)) {
+        return -1;
+      }
+      if ((b.predicted_points === undefined || b.predicted_points === 0) && 
+          (a.predicted_points !== undefined && a.predicted_points > 0)) {
+        return 1;
+      }
+      // Then sort by position for consistency
+      return a.position.localeCompare(b.position);
+    });
+    
+    // Limit number of players to check to avoid excessive processing
+    const playerLimit = Math.min(sortedTeam.length, 5);
+    const playerToCheck = sortedTeam.slice(0, playerLimit);
+    
+    console.log(`Checking ${playerToCheck.length} players for potential replacements`);
+    
+    // For each player in the team (prioritizing players without predictions)
+    for (const currentPlayer of playerToCheck) {
+      // Skip players that have already been suggested for replacement
+      if (alreadySuggestedOutPlayerIds.has(currentPlayer.id)) {
+        continue;
+      }
+      
+      // Ensure current player has a predicted points value (use 0 if undefined)
+      if (currentPlayer.predicted_points === undefined || currentPlayer.predicted_points <= 0) {
+        currentPlayer.predicted_points = 0;
+      }
+      
+      // Find potential replacements of the same position - limit to 50 to avoid excessive processing
+      const potentialReplacements = allPlayers.filter(player => 
+        // Must be same position
+        player.position === currentPlayer.position &&
+        // Must not be the same player
+        player.id !== currentPlayer.id && 
+        // Must not already be in the team
+        !currentTeam.some(teamPlayer => teamPlayer.id === player.id) &&
+        // Ensure the team constraint is maintained
+        (player.team === currentPlayer.team || 
+          currentTeam.filter(p => p.team === player.team).length < MAX_PLAYERS_FROM_SAME_TEAM)
+      ).slice(0, 50); // Limit to 50 players
+      
+      // Ensure all potential replacements have predicted points
+      const replacementsWithPoints = potentialReplacements.map(player => {
+        if (player.predicted_points === undefined || player.predicted_points <= 0) {
+          if (player.total_points !== undefined && player.total_points > 0) {
+            // Use total points as a reasonable fallback divided by 10 for scaling
+            player.predicted_points = player.total_points / 10;
+          } else {
+            // As a last resort, default to 0
+            player.predicted_points = 0;
+          }
+        }
+        return player;
+      });
+      
+      // Sort replacements by predicted points
+      replacementsWithPoints.sort((a, b) => 
+        (b.predicted_points || 0) - (a.predicted_points || 0)
+      );
+      
+      // Limit number of replacements to evaluate to prevent excessive processing
+      const topReplacements = replacementsWithPoints.slice(0, 10);
+      
+      // Find valid replacements within budget
+      let foundGoodReplacement = false;
+      
+      for (const replacement of topReplacements) {
+        const costDifference = replacement.price - currentPlayer.price;
+        const currentPoints = currentPlayer.predicted_points || 0;
+        const replacementPoints = replacement.predicted_points || 0;
+        const pointsImprovement = replacementPoints - currentPoints;
+        
+        // A player is an improvement if it has better predicted points
+        const isImprovement = pointsImprovement > 0;
+          
+        // Check if total team cost would be within MAX_BUDGET after the transfer
+        const newTeamCost = calculateTeamCost(currentTeam) - currentPlayer.price + replacement.price;
+        const isWithinBudget = newTeamCost <= MAX_BUDGET;
+        
+        if (isImprovement && isWithinBudget) {
+          suggestions.push({
+            playerOut: currentPlayer,
+            playerIn: replacement,
+            pointsImprovement,
+            costDifference
+          });
+          
+          // Mark this player as already suggested for replacement
+          alreadySuggestedOutPlayerIds.add(currentPlayer.id);
+          foundGoodReplacement = true;
+          
+          // Only add one suggestion per player
+          break;
+        }
+      }
+    }
+    
+    // If we have no suggestions, add a fallback one
+    if (suggestions.length === 0 && sortedTeam.length > 0) {
+      const lowestScoringPlayer = [...sortedTeam].sort((a, b) => 
+        (a.predicted_points || 0) - (b.predicted_points || 0)
+      )[0];
+      
+      if (lowestScoringPlayer) {
+        // Find a better replacement regardless of improvement
+        const replacements = allPlayers.filter(player => 
+          player.position === lowestScoringPlayer.position &&
+          player.id !== lowestScoringPlayer.id && 
+          !sortedTeam.some(p => p.id === player.id)
+        ).sort((a, b) => 
+          (b.predicted_points || 0) - (a.predicted_points || 0)
+        ).slice(0, 5);
+        
+        for (const replacement of replacements) {
+          const costDifference = replacement.price - lowestScoringPlayer.price;
+          const newTeamCost = calculateTeamCost(sortedTeam) - lowestScoringPlayer.price + replacement.price;
+          
+          if (newTeamCost <= MAX_BUDGET) {
+            suggestions.push({
+              playerOut: lowestScoringPlayer,
+              playerIn: replacement,
+              pointsImprovement: (replacement.predicted_points || 0) - (lowestScoringPlayer.predicted_points || 0),
+              costDifference
+            });
+            break;
+          }
+        }
+      }
+    }
+    
+    // Sort by points improvement and return limited number
+    return suggestions
+      .sort((a, b) => b.pointsImprovement - a.pointsImprovement)
+      .slice(0, limit);
+  } catch (error) {
+    console.error("Error in getSuggestedTransfers:", error);
+    return [];
+  }
 }
 
 // Calculate remaining budget
 export function getRemainingBudget(team: TeamPlayer[]): number {
   const teamCost = calculateTeamCost(team);
   return Number((MAX_BUDGET - teamCost).toFixed(1));
-} 
+}

@@ -26,6 +26,7 @@ interface TeamContextType {
   suggestions: TeamSuggestion[];
   getSuggestions: () => void;
   loadingTeam: boolean;
+  loadingSuggestions: boolean;
   allFormattedPlayers: TeamPlayer[];
 }
 
@@ -36,6 +37,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   const [myTeam, setMyTeam] = useState<TeamPlayer[]>([]);
   const [allFormattedPlayers, setAllFormattedPlayers] = useState<TeamPlayer[]>([]);
   const [suggestions, setSuggestions] = useState<TeamSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   
   // Format all players when data loads
   useEffect(() => {
@@ -111,12 +113,82 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   // Get transfer suggestions
   const getSuggestions = () => {
     if (myTeam.length > 0 && allFormattedPlayers.length > 0) {
-      const teamSuggestions = getSuggestedTransfers(
-        myTeam,
-        allFormattedPlayers,
-        remainingBudget
-      );
-      setSuggestions(teamSuggestions);
+      try {
+        setLoadingSuggestions(true);
+        console.log("-----------------------------------------------");
+        console.log("GETTING SUGGESTIONS");
+        console.log("Team size:", myTeam.length);
+        console.log("Available players:", allFormattedPlayers.length);
+        console.log("Remaining budget:", remainingBudget);
+        console.log("-----------------------------------------------");
+        
+        // Make sure we have predicted points in both myTeam and allFormattedPlayers
+        const teamWithPredictions = myTeam.map(player => {
+          if (!player) {
+            console.error("Found null player in team");
+            return { 
+              id: 0,
+              web_name: "Unknown",
+              position: "UNK",
+              element_type: 0,
+              price: 0,
+              predicted_points: 0
+            } as TeamPlayer;
+          }
+          
+          // If player doesn't have predicted points, try to find it or set to 0
+          if (player.predicted_points === undefined) {
+            const playerWithPrediction = allFormattedPlayers.find(p => p.id === player.id);
+            if (playerWithPrediction && playerWithPrediction.predicted_points !== undefined) {
+              return { ...player, predicted_points: playerWithPrediction.predicted_points };
+            }
+          }
+          
+          return player;
+        });
+        
+        // Make sure all players have at least 0 predicted points
+        const safeTeamWithPredictions = teamWithPredictions.map(player => {
+          if (!player) return null;
+          return {
+            ...player,
+            predicted_points: player.predicted_points ?? 0
+          };
+        }).filter(Boolean) as TeamPlayer[];
+        
+        // Generate suggestions using the optimized function
+        setTimeout(() => {
+          try {
+            const teamSuggestions = getSuggestedTransfers(
+              safeTeamWithPredictions,
+              allFormattedPlayers,
+              0,
+              5
+            );
+            
+            if (teamSuggestions.length > 0) {
+              console.log(`Found ${teamSuggestions.length} suggestions`);
+              setSuggestions(teamSuggestions);
+              setLoadingSuggestions(false);
+            } else {
+              console.log("No suggestions found");
+              setSuggestions([]);
+              setLoadingSuggestions(false);
+            }
+          } catch (error) {
+            console.error("Error generating suggestions:", error);
+            setSuggestions([]);
+            setLoadingSuggestions(false);
+          }
+        }, 100); // Small delay to allow UI to update
+      } catch (error) {
+        console.error("Error in getSuggestions:", error);
+        setSuggestions([]);
+        setLoadingSuggestions(false);
+      }
+    } else {
+      console.log("Cannot generate suggestions - team or player data missing");
+      setLoadingSuggestions(false);
     }
   };
   
@@ -131,6 +203,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     suggestions,
     getSuggestions,
     loadingTeam: loading,
+    loadingSuggestions,
     allFormattedPlayers
   };
   

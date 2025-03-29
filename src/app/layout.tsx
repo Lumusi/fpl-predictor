@@ -9,6 +9,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "FPL Predictor - Fantasy Premier League Points Prediction Tool",
   description: "Predict player performance in Fantasy Premier League (FPL) for upcoming gameweeks and optimize your team",
+  icons: {
+    icon: '/icon.svg',
+  }
 };
 
 export default function RootLayout({

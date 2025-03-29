@@ -8,6 +8,8 @@ export interface Player {
   id: number;
   code: number;  // This is the player code used in the Premier League photos URL
   web_name: string;
+  first_name?: string; // Player's first name
+  second_name?: string; // Player's last name
   team: number;
   element_type: number;
   now_cost: number;

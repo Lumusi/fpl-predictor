@@ -44,7 +44,7 @@ export default function TeamIdDebugPage() {
       name
     }));
     setInternalTeams(teamArray);
-  }, []);
+  }, [currentPremierLeagueTeams]);
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -82,7 +82,7 @@ export default function TeamIdDebugPage() {
     }));
     
     fetchTeams();
-  }, []);
+  }, [currentPremierLeagueTeams]);
 
   const refreshImages = () => {
     setRefreshKey(Date.now());

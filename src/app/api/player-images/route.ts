@@ -12,8 +12,8 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const listImages = searchParams.get('list') === 'true';
   
-  // Base path for player images
-  const playersDir = path.join(process.cwd(), 'players');
+  // Base path for player images - update to public/images/players
+  const playersDir = path.join(process.cwd(), 'public', 'images', 'players');
   
   // If no players directory exists, return an error
   if (!fs.existsSync(playersDir)) {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       success: true,
       id,
       exists,
-      path: exists ? `/players/${id}.png` : null
+      path: exists ? `/images/players/${id}.png` : null
     });
   }
   

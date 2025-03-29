@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import { TeamPlayer } from '@/lib/utils/teamBuilder';
-import { getPlayerImageUrl, getPremierLeaguePlayerImageUrl } from '@/lib/utils/playerImages';
+import { findPlayerImage, getPremierLeaguePlayerImageUrl } from '@/lib/utils/playerImages';
 
 interface PlayerCardProps {
   player: TeamPlayer;
@@ -25,53 +25,52 @@ export default function PlayerCard({
 }: PlayerCardProps) {
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const [localImageError, setLocalImageError] = useState(false);
-  const [plImageError, setPlImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [useExternalImage, setUseExternalImage] = useState(false);
   
   // Function to force refresh the image
   const refreshImage = (e: React.MouseEvent) => {
     e.stopPropagation();
     setRefreshKey(Date.now());
     setLocalImageError(false);
-    setPlImageError(false);
     setImageLoaded(false);
   };
 
   // Get the player code for image URLs - this is different from the player.id
   const playerImageId = player.code || player.id;
 
-  // Local player image URL (from /players directory)
-  const localPlayerImageUrl = getPlayerImageUrl(playerImageId);
+  // Add debug logging
+  console.log(`PlayerCard: Player ${player.web_name} - ID: ${player.id}, Code: ${player.code}, Image ID: ${playerImageId}`);
+
+  // Use the more flexible image finder
+  const localPlayerImageUrl = findPlayerImage(player.code || '', player.id);
   
-  // Premier League official image URL (as fallback)
-  const plPlayerImageUrl = getPremierLeaguePlayerImageUrl(playerImageId);
+  // Add debug logging for the image URL
+  console.log(`PlayerCard: Image URL for ${player.web_name}: ${localPlayerImageUrl}`);
   
-  // Placeholder image for when both local and PL images fail
+  // Placeholder image for when local image fails
   const placeholderImageUrl = '/images/placeholder-shirt.svg';
   
-  // Handle local image error - try PL image instead
-  const handleLocalImageError = () => {
-    setLocalImageError(true);
-  };
+  // Premier League API image URL as fallback
+  const plImageUrl = getPremierLeaguePlayerImageUrl(player.code || player.id);
   
-  // Handle PL image error - use placeholder
-  const handlePlImageError = () => {
-    setPlImageError(true);
+  // Handle local image error - try Premier League API as fallback
+  const handleLocalImageError = () => {
+    console.log(`PlayerCard: Local image error for ${player.web_name}, trying external image: ${plImageUrl}`);
+    setLocalImageError(true);
+    setUseExternalImage(true);
   };
   
   // Determine which image URL to use
   let imageUrl = localPlayerImageUrl;
   
   if (localImageError) {
-    imageUrl = plPlayerImageUrl;
-  }
-  
-  if (localImageError && plImageError) {
-    imageUrl = placeholderImageUrl;
+    imageUrl = useExternalImage ? plImageUrl : placeholderImageUrl;
   }
   
   // Add refresh key to prevent caching
-  if (imageUrl !== placeholderImageUrl) {
+  if (imageUrl !== placeholderImageUrl && !imageUrl.startsWith('http')) {
     imageUrl = `${imageUrl}?key=${refreshKey}`;
   }
 
@@ -121,7 +120,7 @@ export default function PlayerCard({
                   backgroundColor: 'transparent',
                   backgroundImage: 'none'
                 }}
-                onError={localImageError ? handlePlImageError : handleLocalImageError}
+                onError={handleLocalImageError}
               />
             </div>
             {!imageLoaded && (
@@ -188,7 +187,7 @@ export default function PlayerCard({
               priority={false}
               unoptimized={true}
               style={{ height: 'auto', maxWidth: '100%' }}
-              onError={localImageError ? handlePlImageError : handleLocalImageError}
+              onError={handleLocalImageError}
             />
           </div>
           {!imageLoaded && (

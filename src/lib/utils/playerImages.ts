@@ -13,8 +13,49 @@ export function getPlayerImageUrl(playerId: number | string, useFallback: boolea
     return useFallback ? '/images/placeholder-shirt.svg' : '';
   }
   
-  // Primary location: public/players folder (copied from root players directory)
-  return `/players/${playerId}.png`;
+  // Primary location: public/images/players folder
+  return `/images/players/${playerId}.png`;
+}
+
+/**
+ * Try multiple formats to find a player image
+ * This is a fallback solution when the standard image naming convention doesn't match
+ * @param playerId - Primary ID to try (usually the code)
+ * @param fallbackId - Fallback ID to try (usually the element ID)
+ * @param useFallback - Whether to use placeholder when image doesn't exist
+ * @returns URL to the best available image
+ */
+export function findPlayerImage(playerId: number | string, fallbackId?: number | string, useFallback: boolean = true): string {
+  if (!playerId && !fallbackId) {
+    return useFallback ? '/images/placeholder-shirt.svg' : '';
+  }
+  
+  // When checking browser console, log the paths we're checking
+  const paths = [];
+  
+  // List of possible paths to try in order
+  if (playerId) {
+    paths.push(`/images/players/${playerId}.png`);
+    // Also try without leading zeros if it's a string with leading zeros
+    if (typeof playerId === 'string' && playerId.startsWith('0')) {
+      paths.push(`/images/players/${parseInt(playerId, 10)}.png`);
+    }
+  }
+  
+  if (fallbackId && fallbackId !== playerId) {
+    paths.push(`/images/players/${fallbackId}.png`);
+    // Also try without leading zeros
+    if (typeof fallbackId === 'string' && fallbackId.startsWith('0')) {
+      paths.push(`/images/players/${parseInt(fallbackId, 10)}.png`);
+    }
+  }
+  
+  // Log the paths we're checking (for debugging)
+  console.log(`Searching for player image in paths: ${paths.join(', ')}`);
+  
+  // Always return the first path, as we can't check if files exist on the client side
+  // The image component will handle fallbacks if the file doesn't exist
+  return paths[0] || (useFallback ? '/images/placeholder-shirt.svg' : '');
 }
 
 /**
