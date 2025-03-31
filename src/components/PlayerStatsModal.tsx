@@ -61,7 +61,7 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const [localImageError, setLocalImageError] = useState(false);
   const [useExternalImage, setUseExternalImage] = useState(false);
-  
+
   // Get player data when modal is opened
   useEffect(() => {
     if (isOpen && player) {
@@ -80,7 +80,7 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
   // Function to force refresh the image
   const refreshImage = () => {
     setRefreshKey(Date.now());
-    setLocalImageError(false);
+      setLocalImageError(false);
   };
   
   // Get player stats from API
@@ -120,7 +120,7 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
       setLoading(false);
     }
   };
-  
+
   // Load team information
   const loadTeamInfo = async (teamId?: number) => {
     if (!teamId) {
@@ -174,7 +174,7 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
     setUseExternalImage(true);
   };
   
-  return (
+    return (
     <Transition show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
@@ -206,37 +206,37 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
                   <Dialog.Title as="h3" className="text-lg font-semibold">
                     {player.first_name} {player.second_name || player.web_name}
                   </Dialog.Title>
-                  <button
-                    onClick={onClose}
+                <button 
+                  onClick={onClose} 
                     className="text-white hover:text-blue-100"
                   >
-                    <XMarkIcon className="h-6 w-6" />
-                  </button>
-                </div>
-                
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
                 {/* Player info */}
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Left column - player image and basic info */}
                     <div className="flex flex-col items-center">
                       <div className="relative w-40 h-40 bg-gray-100 dark:bg-gray-700 rounded-lg mb-4 overflow-hidden">
-                        <Image
-                          src={imageUrl}
-                          alt={player.web_name}
-                          width={160}
-                          height={160}
-                          className="object-contain"
+                    <Image
+                      src={imageUrl}
+                      alt={player.web_name}
+                      width={160}
+                      height={160}
+                      className="object-contain"
                           onError={handleLocalImageError}
-                          unoptimized={true}
+                      unoptimized={true}
                         />
-                        <button 
-                          onClick={refreshImage}
+                  <button 
+                    onClick={refreshImage}
                           className="absolute bottom-1 right-1 p-1 text-gray-600 hover:text-blue-500 bg-white bg-opacity-70 rounded-md"
-                          title="Refresh player image"
-                        >
+                    title="Refresh player image"
+                  >
                           <ArrowPathIcon className="h-5 w-5" />
-                        </button>
-                      </div>
+                  </button>
+                </div>
                       
                       <h3 className="text-xl font-bold dark:text-white">{player.web_name}</h3>
                       
@@ -253,20 +253,20 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
                           />
                         )}
                         <span className="text-gray-600 dark:text-gray-300">{player.team_name}</span>
-                      </div>
-                      
+              </div>
+              
                       {/* Player position and price */}
                       <div className="mt-4 grid grid-cols-2 gap-4 w-full">
                         <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg flex flex-col items-center">
                           <span className="text-sm text-gray-500 dark:text-gray-400">Position</span>
                           <span className="font-bold dark:text-white">{player.position}</span>
-                        </div>
+                  </div>
                         <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg flex flex-col items-center">
                           <span className="text-sm text-gray-500 dark:text-gray-400">Price</span>
                           <span className="font-bold dark:text-white">£{player.price?.toFixed(1)}m</span>
-                        </div>
-                      </div>
-                      
+            </div>
+          </div>
+          
                       {/* Player form/points */}
                       <div className="mt-4 w-full">
                         <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg flex flex-col items-center">
@@ -291,7 +291,7 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
                           {[...Array(7)].map((_, i) => (
                             <div key={i} className="h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
                           ))}
-                        </div>
+                          </div>
                       ) : stats ? (
                         <div className="space-y-2">
                           <div className="flex justify-between py-2 border-b border-gray-200 dark:border-gray-700">
@@ -347,9 +347,9 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
                                   game.points >= 5 ? 'bg-green-400' : 
                                   game.points >= 3 ? 'bg-yellow-400' : 'bg-red-400'}`}>
                                 {game.points}
-                              </div>
+                      </div>
                               <span className="text-xs mt-1 text-gray-600 dark:text-gray-400">{game.opponent}</span>
-                            </div>
+                    </div>
                           ))}
                         </div>
                       ) : (
@@ -375,7 +375,7 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
                                   fixture.difficulty === 4 ? 'bg-orange-400' : 'bg-red-500'}`}>
                                 {fixture.difficulty}
                               </div>
-                            </div>
+                          </div>
                           ))}
                         </div>
                       ) : (
