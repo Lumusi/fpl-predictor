@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { type NextRequest } from 'next/server';
 
 const FPL_API_URL = 'https://fantasy.premierleague.com/api';
 const COOKIE_NAME = 'fpl_auth_cookies';
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   context: { params: { teamId: string } }
 ) {
   try {
@@ -21,9 +20,21 @@ export async function GET(
     }
     
     try {
-      // Work around the TypeScript issues with Next.js cookies API
-      // @ts-ignore - Next.js typing issue
-      const fplCookiesData = cookies().get(COOKIE_NAME);
+      // Access cookies
+      const cookieHeader = request.headers.get('cookie');
+      let fplCookiesData = null;
+      
+      // Try to find the cookie in the request header
+      if (cookieHeader && cookieHeader.includes(COOKIE_NAME)) {
+        const cookiePairs = cookieHeader.split(';');
+        for (const pair of cookiePairs) {
+          const [name, value] = pair.trim().split('=');
+          if (name === COOKIE_NAME) {
+            fplCookiesData = { value: decodeURIComponent(value) };
+            break;
+          }
+        }
+      }
       
       if (!fplCookiesData) {
         return NextResponse.json(
