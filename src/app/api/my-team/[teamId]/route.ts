@@ -6,10 +6,10 @@ const COOKIE_NAME = 'fpl_auth_cookies';
 
 export async function GET(
   request: Request,
-  { params }: { params: { teamId: string } }
+  context: { params: { teamId: string } }
 ) {
   try {
-    const teamId = params.teamId;
+    const teamId = context.params.teamId;
     
     // Validate team ID
     if (!teamId || isNaN(parseInt(teamId))) {
@@ -55,17 +55,11 @@ export async function GET(
       
       const data = await response.json();
       
-      // Log success for debugging
-      console.log(`Successfully fetched authenticated data for team ${teamId}`);
-      
       // Check if we have picks with purchase/selling prices
       if (data && data.picks && data.picks.length > 0) {
         const firstPick = data.picks[0];
         const hasPurchasePrice = 'purchase_price' in firstPick;
         const hasSellingPrice = 'selling_price' in firstPick;
-        
-        console.log(`Has purchase_price: ${hasPurchasePrice}`);
-        console.log(`Has selling_price: ${hasSellingPrice}`);
       }
       
       return NextResponse.json(data);
