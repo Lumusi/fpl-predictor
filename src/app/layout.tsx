@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { TeamProvider } from "../lib/contexts/TeamContext";
-import { ThemeProvider } from "next-themes";
-import { SWRConfig } from "swr";
-import { defaultSWRConfig } from "../lib/hooks/useSWRConfig";
-import DebugToggle from "@/components/DebugToggle";
+import Providers from "./providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,7 +11,16 @@ export const metadata: Metadata = {
   icons: {
     icon: '/icon.svg',
     apple: '/icon.svg',
-  }
+  },
+  // Add mobile-specific metadata
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+  themeColor: "#1e40af", // Blue-700
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "FPL Predictor"
+  },
+  manifest: "/manifest.json"
 };
 
 export default function RootLayout({
@@ -26,20 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen bg-light-background text-light-text-primary dark:bg-dark-background dark:text-dark-text-primary transition-colors duration-300`}>
-        <SWRConfig value={defaultSWRConfig}>
-          <ThemeProvider 
-            attribute="class"
-            defaultTheme="system"
-            enableSystem={true}
-            disableTransitionOnChange={false}
-            storageKey="theme"
-          >
-            <TeamProvider>
-              {children}
-              <DebugToggle />
-            </TeamProvider>
-          </ThemeProvider>
-        </SWRConfig>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

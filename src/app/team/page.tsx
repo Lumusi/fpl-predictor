@@ -1,9 +1,16 @@
 'use client';
 
 import { useFplData } from '@/lib/hooks/useFplData';
-import TeamBuilder from '@/components/team/TeamBuilder';
 import Header from '@/components/Header';
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
+
+// Use dynamic import with no SSR for the TeamBuilderLoader
+// This helps with both code splitting and preventing hydration errors
+const TeamBuilderLoader = dynamic(
+  () => import('@/components/TeamBuilderLoader'),
+  { ssr: false }
+);
 
 export default function TeamPage() {
   const { currentGameweek, loading } = useFplData();
@@ -14,7 +21,7 @@ export default function TeamPage() {
       
       <main className="container mx-auto py-2 px-4 min-h-[calc(100vh-64px)] relative pb-24">
         <div className="w-full h-[calc(100vh-110px)]">
-          <TeamBuilder />
+          <TeamBuilderLoader />
         </div>
       </main>
     </div>
