@@ -1,15 +1,22 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { type NextRequest } from 'next/server';
 
 const FPL_API_URL = 'https://fantasy.premierleague.com/api';
 const COOKIE_NAME = 'fpl_auth_cookies';
 
+interface RouteContext {
+  params: {
+    teamId: string;
+  };
+}
+
 export async function GET(
-  request: Request,
-  context: { params: { teamId: string } }
+  request: NextRequest,
+  { params }: RouteContext
 ) {
   try {
-    const teamId = context.params.teamId;
+    const teamId = params.teamId;
     
     // Validate team ID
     if (!teamId || isNaN(parseInt(teamId))) {
