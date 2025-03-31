@@ -215,9 +215,8 @@ function calculateFixtureScaling(fixtureCount: number): number {
  * Apply random variation factor
  */
 function applyRandomVariation(points: number): number {
-  const randomFactor = PREDICTION_CONSTANTS.RANDOM_MIN + 
-                       (Math.random() * PREDICTION_CONSTANTS.RANDOM_RANGE);
-  return points * randomFactor;
+  // Return the exact points without randomness
+  return points;
 }
 
 /**

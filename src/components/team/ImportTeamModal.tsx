@@ -2,10 +2,11 @@ import { Fragment, useRef, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { useTeam } from '@/lib/contexts/TeamContext';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 
 interface ImportTeamModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (importSuccessful?: boolean) => void;
 }
 
 export default function ImportTeamModal({ isOpen, onClose }: ImportTeamModalProps) {
@@ -32,7 +33,8 @@ export default function ImportTeamModal({ isOpen, onClose }: ImportTeamModalProp
       const result = await importTeam(parseInt(teamId));
       
       if (result.success) {
-        onClose();
+        // Call onClose with success flag to trigger budget update in parent
+        onClose(true);
       } else {
         setError(result.message || 'Error importing team');
       }
@@ -46,7 +48,7 @@ export default function ImportTeamModal({ isOpen, onClose }: ImportTeamModalProp
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-10" initialFocus={cancelButtonRef} onClose={onClose}>
+      <Dialog as="div" className="relative z-50" initialFocus={cancelButtonRef} onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -56,89 +58,97 @@ export default function ImportTeamModal({ isOpen, onClose }: ImportTeamModalProp
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          <div className="flex min-h-full items-center justify-center p-4">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
-              enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-              enterTo="opacity-100 translate-y-0 sm:scale-100"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
               leave="ease-in duration-200"
-              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-              leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
-                <div className="absolute right-0 top-0 pr-4 pt-4">
-                  <button
-                    type="button"
-                    className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    onClick={onClose}
+              <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-xl bg-white dark:bg-slate-800 shadow-xl transition-all">
+                {/* Header with title and close button */}
+                <div className="bg-blue-600 dark:bg-blue-700 text-white px-6 py-4 flex items-center justify-between">
+                  <Dialog.Title as="h3" className="text-lg font-semibold">
+                    Import Team from FPL
+                  </Dialog.Title>
+                  <button 
+                    onClick={() => onClose(false)} 
+                    className="text-white hover:text-blue-100"
                   >
-                    <span className="sr-only">Close</span>
-                    <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                    <XMarkIcon className="h-6 w-6" />
                   </button>
                 </div>
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                    <Dialog.Title as="h3" className="text-xl font-semibold leading-6 text-gray-900">
-                      Import Team from FPL
-                    </Dialog.Title>
-                    <div className="mt-4">
-                      <p className="text-sm text-gray-500 mb-4">
-                        Enter your Team ID to import your current team from Fantasy Premier League.
-                      </p>
-                      
-                      <div className="mb-4">
-                        <label htmlFor="team-id" className="block text-sm font-medium text-gray-700 mb-1">
-                          Team ID
-                        </label>
-                        <input
-                          type="text"
-                          id="team-id"
-                          value={teamId}
-                          onChange={(e) => setTeamId(e.target.value)}
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                          placeholder="e.g. 12345"
-                        />
-                      </div>
-                      
-                      <div className="mb-4 bg-blue-50 rounded-md p-3">
-                        <h4 className="text-sm font-medium text-blue-800 mb-1">How to find your Team ID</h4>
-                        <ol className="text-sm text-blue-700 list-decimal pl-5">
-                          <li>Log in to the <a href="https://fantasy.premierleague.com/" target="_blank" rel="noopener noreferrer" className="underline">FPL website</a></li>
-                          <li>Go to the &quot;Points&quot; tab</li>
-                          <li>The Team ID is in the URL after &quot;/entry/&quot;</li>
-                        </ol>
-                      </div>
-                      
-                      {error && (
-                        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                          {error}
-                        </div>
-                      )}
-                    </div>
+                
+                <div className="p-6 dark:bg-slate-800">
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                    Enter your Team ID to import your current team from Fantasy Premier League.
+                  </p>
+                  
+                  <div className="mb-5">
+                    <label htmlFor="team-id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Team ID
+                    </label>
+                    <input
+                      type="text"
+                      id="team-id"
+                      value={teamId}
+                      onChange={(e) => setTeamId(e.target.value)}
+                      className="block w-full rounded-lg border-gray-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2.5"
+                      placeholder="e.g. 12345"
+                    />
                   </div>
-                </div>
-                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="button"
-                    className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto"
-                    onClick={handleImport}
-                    disabled={loading}
-                  >
-                    {loading ? 'Importing...' : 'Import Team'}
-                  </button>
-                  <button
-                    type="button"
-                    className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                    onClick={onClose}
-                    ref={cancelButtonRef}
-                  >
-                    Cancel
-                  </button>
+                  
+                  <div className="mb-5 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border-l-4 border-blue-500">
+                    <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">How to find your Team ID</h4>
+                    <ol className="text-sm text-blue-700 dark:text-blue-300 list-decimal ml-5 space-y-1">
+                      <li className="flex items-start">
+                        <span>Log in to the </span>
+                        <a 
+                          href="https://fantasy.premierleague.com/" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="inline-flex items-center mx-1 text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          FPL website
+                          <ArrowTopRightOnSquareIcon className="h-3 w-3 ml-0.5" />
+                        </a>
+                      </li>
+                      <li>Go to the "Points" tab</li>
+                      <li>The Team ID is in the URL after "/entry/"</li>
+                    </ol>
+                  </div>
+                  
+                  {error && (
+                    <div className="mb-5 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-r-lg">
+                      <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                    </div>
+                  )}
+                
+                  <div className="flex justify-end space-x-3 mt-6">
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onClick={() => onClose(false)}
+                      ref={cancelButtonRef}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-700 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                      onClick={handleImport}
+                      disabled={loading}
+                    >
+                      {loading ? 'Importing...' : 'Import Team'}
+                    </button>
+                  </div>
                 </div>
               </Dialog.Panel>
             </Transition.Child>

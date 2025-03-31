@@ -5,6 +5,7 @@ import { TeamProvider } from "../lib/contexts/TeamContext";
 import { ThemeProvider } from "next-themes";
 import { SWRConfig } from "swr";
 import { defaultSWRConfig } from "../lib/hooks/useSWRConfig";
+import DebugToggle from "@/components/DebugToggle";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -35,6 +36,7 @@ export default function RootLayout({
           >
             <TeamProvider>
               {children}
+              <DebugToggle />
             </TeamProvider>
           </ThemeProvider>
         </SWRConfig>

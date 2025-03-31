@@ -1,5 +1,6 @@
 import { Player, Team } from '../services/fplApi';
 import { predictPlayerPoints } from './predictions';
+import logger from './logger';
 
 // Constants
 export const MAX_BUDGET = 100.0; // £100.0m
@@ -94,26 +95,26 @@ export function formatPlayerForTeam(player: Player | ExtendedPlayer, teams: Team
     // Check if it needs conversion (is it in format like 75 instead of 7.5?)
     playerPrice = player.price > 20 ? player.price / 10 : player.price; // Convert if needed
     priceSource = 'price_property';
-    console.log(`[FORMAT_PLAYER] Player ${player.web_name}: Using provided price: ${playerPrice} (original value: ${player.price})`);
+    logger.debug(`[FORMAT_PLAYER] Player ${player.web_name}: Using provided price: ${playerPrice} (original value: ${player.price})`);
   } 
   // Check if now_cost is available
   else if (player.now_cost !== undefined && player.now_cost > 0) {
     // Calculate price from now_cost (standard API format)
     playerPrice = player.now_cost > 20 ? player.now_cost / 10 : player.now_cost;
     priceSource = 'now_cost';
-    console.log(`[FORMAT_PLAYER] Player ${player.web_name}: Calculated price from now_cost: ${playerPrice} (original value: ${player.now_cost})`);
+    logger.debug(`[FORMAT_PLAYER] Player ${player.web_name}: Calculated price from now_cost: ${playerPrice} (original value: ${player.now_cost})`);
   } 
   // Check if selling_price is available for imported players
   else if ('selling_price' in player && typeof player.selling_price === 'number' && player.selling_price > 0) {
     playerPrice = player.selling_price > 20 ? player.selling_price / 10 : player.selling_price;
     priceSource = 'selling_price';
-    console.log(`[FORMAT_PLAYER] Player ${player.web_name}: Using selling_price as price: ${playerPrice} (original value: ${player.selling_price})`);
+    logger.debug(`[FORMAT_PLAYER] Player ${player.web_name}: Using selling_price as price: ${playerPrice} (original value: ${player.selling_price})`);
   }
   // If we still have no price, use a default
   else {
     playerPrice = 4.0; // Default minimum price
     priceSource = 'default';
-    console.warn(`[FORMAT_PLAYER] WARNING: No valid price found for player ${player.web_name} (ID: ${player.id}), using default of ${playerPrice}`);
+    logger.warn(`[FORMAT_PLAYER] WARNING: No valid price found for player ${player.web_name} (ID: ${player.id}), using default of ${playerPrice}`);
   }
   
   // Handle purchase_price
@@ -122,7 +123,7 @@ export function formatPlayerForTeam(player: Player | ExtendedPlayer, teams: Team
     // Price is already provided (likely from an imported player)
     // Check if it needs conversion
     purchasePrice = player.purchase_price > 20 ? player.purchase_price / 10 : player.purchase_price;
-    console.log(`[FORMAT_PLAYER] Player ${player.web_name}: Using provided purchase_price: ${purchasePrice} (original value: ${player.purchase_price})`);
+    logger.debug(`[FORMAT_PLAYER] Player ${player.web_name}: Using provided purchase_price: ${purchasePrice} (original value: ${player.purchase_price})`);
   } else {
     purchasePrice = playerPrice; // Default to regular price if not specified
   }
@@ -133,24 +134,24 @@ export function formatPlayerForTeam(player: Player | ExtendedPlayer, teams: Team
     // Price is already provided (likely from an imported player)
     // Check if it needs conversion
     sellingPrice = player.selling_price > 20 ? player.selling_price / 10 : player.selling_price;
-    console.log(`[FORMAT_PLAYER] Player ${player.web_name}: Using provided selling_price: ${sellingPrice} (original value: ${player.selling_price})`);
+    logger.debug(`[FORMAT_PLAYER] Player ${player.web_name}: Using provided selling_price: ${sellingPrice} (original value: ${player.selling_price})`);
   } else {
     sellingPrice = playerPrice; // Default to regular price if not specified
   }
   
   // Extra safety check to make sure we never use a 0 price
   if (playerPrice === 0) {
-    console.warn(`[FORMAT_PLAYER] WARNING: Zero price detected for ${player.web_name}, falling back to minimum price`);
+    logger.warn(`[FORMAT_PLAYER] WARNING: Zero price detected for ${player.web_name}, falling back to minimum price`);
     playerPrice = 4.0; // Minimum player price
   }
   
   if (sellingPrice === 0) {
-    console.warn(`[FORMAT_PLAYER] WARNING: Zero selling price detected for ${player.web_name}, using price instead: ${playerPrice}`);
+    logger.warn(`[FORMAT_PLAYER] WARNING: Zero selling price detected for ${player.web_name}, using price instead: ${playerPrice}`);
     sellingPrice = playerPrice;
   }
   
   if (purchasePrice === 0) {
-    console.warn(`[FORMAT_PLAYER] WARNING: Zero purchase price detected for ${player.web_name}, using price instead: ${playerPrice}`);
+    logger.warn(`[FORMAT_PLAYER] WARNING: Zero purchase price detected for ${player.web_name}, using price instead: ${playerPrice}`);
     purchasePrice = playerPrice;
   }
   
@@ -175,7 +176,7 @@ export function formatPlayerForTeam(player: Player | ExtendedPlayer, teams: Team
   }
   
   // Log final player pricing information for debugging
-  console.log(`[FORMAT_PLAYER] Final values for ${player.web_name}: price=${playerPrice.toFixed(1)}, purchase=${purchasePrice.toFixed(1)}, selling=${sellingPrice.toFixed(1)} (source: ${priceSource})`);
+  logger.debug(`[FORMAT_PLAYER] Final values for ${player.web_name}: price=${playerPrice.toFixed(1)}, purchase=${purchasePrice.toFixed(1)}, selling=${sellingPrice.toFixed(1)} (source: ${priceSource})`);
   
   return {
     ...player,
@@ -239,7 +240,7 @@ export function getSuggestedTransfers(
 ): TeamSuggestion[] {
   try {
     // Reduce logging to prevent console spam
-    console.log("getSuggestedTransfers called with:", {
+    logger.debug("getSuggestedTransfers called with:", {
       teamSize: currentTeam.length,
       allPlayersSize: allPlayers.length,
       budget: budget,
@@ -248,7 +249,7 @@ export function getSuggestedTransfers(
 
     // Validate inputs to prevent issues
     if (!currentTeam || currentTeam.length === 0 || !allPlayers || allPlayers.length === 0) {
-      console.log("Invalid inputs for getSuggestedTransfers");
+      logger.warn("Invalid inputs for getSuggestedTransfers");
       return [];
     }
 
@@ -274,7 +275,7 @@ export function getSuggestedTransfers(
     const playerLimit = Math.min(sortedTeam.length, 5);
     const playerToCheck = sortedTeam.slice(0, playerLimit);
     
-    console.log(`Checking ${playerToCheck.length} players for potential replacements`);
+    logger.debug(`Checking ${playerToCheck.length} players for potential replacements`);
     
     // For each player in the team (prioritizing players without predictions)
     for (const currentPlayer of playerToCheck) {
@@ -422,7 +423,7 @@ export function getSuggestedTransfers(
       .sort((a, b) => b.pointsImprovement - a.pointsImprovement)
       .slice(0, limit);
   } catch (error) {
-    console.error("Error in getSuggestedTransfers:", error);
+    logger.error("Error in getSuggestedTransfers:", error);
     return [];
   }
 }
@@ -453,7 +454,7 @@ export const calculatePlayerSellValues = (
     purchasePricesMap[transfer.element_in] = buyPrice;
   });
   
-  console.log("Transfer history map created");
+  logger.debug("Transfer history map created");
   
   // We'll need to fetch the start price for players not in transfer history
   const playerPromises = players.map(async player => {
@@ -467,12 +468,12 @@ export const calculatePlayerSellValues = (
       // This provides the most accurate purchase price data
       if (purchasePricesMap[playerId] !== undefined) {
         purchasePrice = purchasePricesMap[playerId];
-        console.log(`${player.web_name}: Using transfer history purchase price: ${purchasePrice}`);
+        logger.debug(`${player.web_name}: Using transfer history purchase price: ${purchasePrice}`);
       }
       // 2. For original team members not in transfer history, get their starting price from element-summary
       else {
         try {
-          console.log(`${player.web_name}: Fetching start price from element-summary API`);
+          logger.debug(`${player.web_name}: Fetching start price from element-summary API`);
           const response = await fetch(`https://fantasy.premierleague.com/api/element-summary/${playerId}/`);
           if (response.ok) {
             const data = await response.json();
@@ -481,31 +482,31 @@ export const calculatePlayerSellValues = (
               const gameweek1Data = data.history.find((h: any) => h.round === 1);
               if (gameweek1Data) {
                 purchasePrice = gameweek1Data.value / 10;
-                console.log(`${player.web_name}: Using gameweek 1 price as purchase price: ${purchasePrice}`);
+                logger.debug(`${player.web_name}: Using gameweek 1 price as purchase price: ${purchasePrice}`);
               } else {
                 // If no gameweek 1 data (player might have been added to FPL later)
                 // use the earliest available gameweek
                 const earliestGameweek = data.history.sort((a: any, b: any) => a.round - b.round)[0];
                 if (earliestGameweek) {
                   purchasePrice = earliestGameweek.value / 10;
-                  console.log(`${player.web_name}: Using earliest gameweek (${earliestGameweek.round}) price: ${purchasePrice}`);
+                  logger.debug(`${player.web_name}: Using earliest gameweek (${earliestGameweek.round}) price: ${purchasePrice}`);
                 } else {
                   purchasePrice = currentPrice;
-                  console.log(`${player.web_name}: No history found, using current price as purchase price: ${purchasePrice}`);
+                  logger.debug(`${player.web_name}: No history found, using current price as purchase price: ${purchasePrice}`);
                 }
               }
             } else {
               purchasePrice = currentPrice;
-              console.log(`${player.web_name}: No history data found, using current price as purchase price: ${purchasePrice}`);
+              logger.debug(`${player.web_name}: No history data found, using current price as purchase price: ${purchasePrice}`);
             }
           } else {
             purchasePrice = currentPrice;
-            console.log(`${player.web_name}: Failed to fetch element-summary, using current price as purchase price: ${purchasePrice}`);
+            logger.debug(`${player.web_name}: Failed to fetch element-summary, using current price as purchase price: ${purchasePrice}`);
           }
         } catch (error) {
-          console.error(`Error fetching element-summary for player ${playerId} (${player.web_name}):`, error);
+          logger.error(`Error fetching element-summary for player ${playerId} (${player.web_name}):`, error);
           purchasePrice = currentPrice;
-          console.log(`${player.web_name}: Error fetching start price, using current price as purchase price: ${purchasePrice}`);
+          logger.debug(`${player.web_name}: Error fetching start price, using current price as purchase price: ${purchasePrice}`);
         }
       }
       
@@ -514,7 +515,7 @@ export const calculatePlayerSellValues = (
       // If current price is lower than purchase price, selling price equals current price
       if (currentPrice < purchasePrice) {
         sellingPrice = currentPrice;
-        console.log(`${player.web_name}: CP (${currentPrice}) < PP (${purchasePrice}) => SP = CP (${sellingPrice})`);
+        logger.debug(`${player.web_name}: CP (${currentPrice}) < PP (${purchasePrice}) => SP = CP (${sellingPrice})`);
       } 
       // If player has increased in value, apply FPL's 50% rule (rounded down to nearest 0.1)
       else if (currentPrice > purchasePrice) {
@@ -523,17 +524,17 @@ export const calculatePlayerSellValues = (
         // Calculate 50% of the increase and round down to nearest 0.1
         const sellValueIncrease = Math.floor(priceIncrease * 5) / 10; 
         sellingPrice = purchasePrice + sellValueIncrease;
-        console.log(`${player.web_name}: CP (${currentPrice}) > PP (${purchasePrice}), Increase: ${priceIncrease}, 50%: ${sellValueIncrease} => SP = ${sellingPrice}`);
+        logger.debug(`${player.web_name}: CP (${currentPrice}) > PP (${purchasePrice}), Increase: ${priceIncrease}, 50%: ${sellValueIncrease} => SP = ${sellingPrice}`);
       }
       // If current price equals purchase price
       else {
         sellingPrice = purchasePrice;
-        console.log(`${player.web_name}: CP (${currentPrice}) = PP (${purchasePrice}) => SP = PP (${sellingPrice})`);
+        logger.debug(`${player.web_name}: CP (${currentPrice}) = PP (${purchasePrice}) => SP = PP (${sellingPrice})`);
       }
       
       // Compare with FPL-provided selling price for verification if available
       if (player.fpl_selling_price !== undefined && Math.abs(sellingPrice - player.fpl_selling_price) > 0.01) {
-        console.log(`${player.web_name}: WARNING - Our calculated SP (${sellingPrice}) differs from FPL's SP (${player.fpl_selling_price})`);
+        logger.debug(`${player.web_name}: WARNING - Our calculated SP (${sellingPrice}) differs from FPL's SP (${player.fpl_selling_price})`);
       }
       
       // Add purchase_price and selling_price to the player
@@ -543,7 +544,7 @@ export const calculatePlayerSellValues = (
         selling_price: sellingPrice
       };
     } catch (error) {
-      console.error(`Error calculating sell value for player ${player.id} (${player.web_name}):`, error);
+      logger.error(`Error calculating sell value for player ${player.id} (${player.web_name}):`, error);
       // Return player with current price as both purchase and selling price as a fallback
       const safePrice = (player.now_cost || 0) / 10;
       return {

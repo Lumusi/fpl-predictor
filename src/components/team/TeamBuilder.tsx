@@ -1,16 +1,24 @@
 import React, { useState, useCallback, useMemo, Fragment, useEffect } from 'react';
 import { useTeam } from '@/lib/contexts/TeamContext';
-import { FORMATION_CONSTRAINTS, POSITION_ID_MAP, ExtendedPlayer, MAX_BUDGET } from '@/lib/utils/teamBuilder';
+import { FORMATION_CONSTRAINTS, POSITION_ID_MAP, ExtendedPlayer, MAX_BUDGET, TeamPlayer } from '@/lib/utils/teamBuilder';
 import PlayerCard from './PlayerCard';
 import { Tab } from '@headlessui/react';
 import FieldView from './FieldView';
 import { XMarkIcon, ArrowsRightLeftIcon, ArrowRightIcon, ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import { Popover, Transition, Dialog } from '@headlessui/react';
-import { TeamPlayer, TeamSuggestion } from '@/lib/utils/teamBuilder';
+import { TeamSuggestion } from '@/lib/utils/teamBuilder';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import ImportTeamModal from './ImportTeamModal';
+// Import virtualization components
+import { FixedSizeList, ListChildComponentProps } from 'react-window';
+// Import the optimized player card
+import OptimizedPlayerCard from './OptimizedPlayerCard';
+// Import debounce hooks
+import { useDebounce, useDebouncedSetter } from '@/lib/hooks/useDebounce';
+// Import device utilities
+import { isMobile, getDeviceAwareCount } from '@/lib/utils/deviceUtils';
 
 // Simple Button component
 const Button = React.forwardRef<
@@ -33,6 +41,8 @@ const Button = React.forwardRef<
     />
   );
 });
+
+Button.displayName = 'Button';
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
@@ -67,7 +77,11 @@ export default function TeamBuilder() {
   // Update persisted budget initialization
   const [persistedBudget, setPersistedBudget] = useState<number>(bank !== null ? bank : MAX_BUDGET);
   
-  const [searchTerm, setSearchTerm] = useState('');
+  // Internal search term state (before debounce)
+  const [searchInputValue, setSearchInputValue] = useState('');
+  // Debounced search term that will trigger filtering
+  const searchTerm = useDebounce(searchInputValue, 300);
+  
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -75,12 +89,28 @@ export default function TeamBuilder() {
   const [maxCost, setMaxCost] = useState<number>(15.0);
   const [sortBy, setSelectBy] = useState<'total_points' | 'price' | 'predicted_points'>('total_points');
   const [currentPage, setCurrentPage] = useState(1);
-  const playersPerPage = 20; // Reduce the number of players shown at once
+  
+  // Adjust players per page based on device
+  const playersPerPage = useMemo(() => 
+    getDeviceAwareCount(20, 10, 15), 
+  []);
+  
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedPlayerForSwap, setSelectedPlayerForSwap] = useState<TeamPlayer | null>(null);
   const [playerSpecificSuggestions, setPlayerSpecificSuggestions] = useState<TeamSuggestion[]>([]);
   const [loadingPlayerSuggestions, setLoadingPlayerSuggestions] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  
+  // Add effect to update persisted budget when bank changes (e.g., during import)
+  useEffect(() => {
+    // Only update if bank is not null and it's different from persistedBudget
+    // This ensures we don't get into an infinite loop and only update after imports
+    if (bank !== null && bank !== persistedBudget) {
+      console.log(`[BUDGET] Updating persisted budget from ${persistedBudget} to ${bank} due to bank change`);
+      setPersistedBudget(bank);
+      forceRefresh(); // Force UI refresh with new budget
+    }
+  }, [bank, persistedBudget, forceRefresh]);
   
   // Group players by position - memoized to prevent recalculation
   const teamByPosition = useMemo(() => {
@@ -98,6 +128,9 @@ export default function TeamBuilder() {
     const calculatedBudget = persistedBudget !== MAX_BUDGET 
       ? persistedBudget  
       : (bank !== null ? bank : MAX_BUDGET - teamCost);
+    
+    // Log the budget calculation
+    console.debug(`[BUDGET] Calculated budget: ${calculatedBudget.toFixed(1)}m (persisted: ${persistedBudget.toFixed(1)}m, bank: ${bank !== null ? bank.toFixed(1) + 'm' : 'null'}, teamCost: ${teamCost.toFixed(1)}m)`);
     
     return calculatedBudget;
   }, [persistedBudget, bank, teamCost]);
@@ -156,7 +189,7 @@ export default function TeamBuilder() {
   // Filter players for the selector - memoized to prevent recalculation
   const filteredPlayers = useMemo(() => {
     return allFormattedPlayers.filter(player => {
-      const matchesSearch = 
+      const matchesSearch = searchTerm === '' || 
         player.web_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         player.team_short_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (player.first_name && player.first_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -200,92 +233,89 @@ export default function TeamBuilder() {
 
   // Calculate pagination
   const totalPages = Math.ceil(sortedPlayers.length / playersPerPage);
-  const startIndex = (currentPage - 1) * playersPerPage;
-  const endIndex = startIndex + playersPerPage;
-  const currentPlayers = sortedPlayers.slice(startIndex, endIndex);
   
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-      // Scroll to top of list when changing pages
-      const playerList = document.getElementById('player-list');
-      if (playerList) playerList.scrollTop = 0;
-    }
-  };
+  // For virtualization, we'll use all sorted players instead of just current page
+  // We'll handle pagination in the UI but virtualize the entire list
   
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-      // Scroll to top of list when changing pages
-      const playerList = document.getElementById('player-list');
-      if (playerList) playerList.scrollTop = 0;
-    }
-  };
-  
-  // Function to get player-specific suggestions
-  const getPlayerSuggestions = useCallback(async (player: TeamPlayer) => {
-    if (!player || !allFormattedPlayers.length) return;
+  // Handle player removal
+  const handleRemovePlayer = useCallback((playerId: number) => {
+    // Remove player and update display
+    removePlayer(playerId);
+    forceRefresh();
+  }, [removePlayer, forceRefresh]);
+
+  // Helper function to convert TeamPlayer to ExtendedPlayer for the context swap function
+  const convertToExtendedPlayer = useCallback((player: TeamPlayer, incomingPlayerPP?: number): ExtendedPlayer => {
+    return {
+      id: player.id,
+      code: player.code || 0,
+      web_name: player.web_name,
+      team: player.team || 0,
+      element_type: player.element_type,
+      now_cost: player.now_cost || 0,
+      selling_price: player.selling_price,
+      purchase_price: incomingPlayerPP || player.purchase_price || player.price,
+      total_points: player.total_points || 0,
+      goals_scored: 0,
+      assists: 0,
+      clean_sheets: 0,
+      minutes: 0,
+      form: player.form || "0",
+      points_per_game: "0",
+      selected_by_percent: "0",
+      status: "",
+      chance_of_playing_next_round: null
+    };
+  }, []);
+
+  // Handle player swap
+  const handleSwapPlayer = useCallback((playerId: number, newPlayerId: number) => {
+    // Find the new player
+    const newPlayerData = allFormattedPlayers.find(p => p.id === newPlayerId);
     
-    setSelectedPlayerForSwap(player);
-    setLoadingPlayerSuggestions(true);
-    
-    try {
-      // Find available players of the same position who are not in the team
-      const availableReplacements = allFormattedPlayers.filter(p => 
-        p.position === player.position && 
-        p.id !== player.id && 
-        !myTeam.some(teamPlayer => teamPlayer.id === p.id)
-      );
+    if (newPlayerData) {
+      // Convert TeamPlayer to ExtendedPlayer before swapping
+      const extendedPlayer = convertToExtendedPlayer(newPlayerData);
       
-      // Sort by predicted points (highest first)
-      const sortedReplacements = [...availableReplacements].sort((a, b) => 
-        (b.predicted_points || 0) - (a.predicted_points || 0)
-      );
+      // Perform the swap
+      const result = swapPlayer(playerId, extendedPlayer);
       
-      // Take up to 5 players with better predicted points than the current player
-      const betterPlayers = sortedReplacements
-        .filter(p => (p.predicted_points || 0) > (player.predicted_points || 0))
-        .slice(0, 5);
-      
-      // If we don't have 5 better players, just take the top 5 anyway
-      const suggestions = betterPlayers.length >= 3 
-        ? betterPlayers 
-        : sortedReplacements.slice(0, 5);
-      
-      // Get player sell value (use selling_price if available)
-      const playerSellValue = typeof player.selling_price === 'number' ? player.selling_price : player.price;
-      
-      // Format as TeamSuggestion objects with correct budget calculations
-      const formattedSuggestions = suggestions.map(suggestion => {
-        // Get the current price (PP) of the incoming player - this is always now_cost/10
-        const incomingPlayerPP = suggestion.price || (suggestion.now_cost || 0) / 10;
+      if (result.success) {
+        // If the swap context returned a new bank value, update our persisted budget
+        if (result.newBank !== undefined) {
+          setPersistedBudget(result.newBank);
+        }
         
-        // Get the selling price (SP) of the outgoing player
-        const outgoingPlayerSP = playerSellValue;
-        
-        // Calculate price difference - positive means we gain money, negative means we spend
-        const costDifference = outgoingPlayerSP - incomingPlayerPP;
-        
-        return {
-          playerOut: player,
-          playerIn: suggestion,
-          pointsImprovement: (suggestion.predicted_points || 0) - (player.predicted_points || 0),
-          costDifference: costDifference,
-          costDifferenceLabel: costDifference > 0 
-            ? `Bank +£${costDifference.toFixed(1)}m` 
-            : `Bank -£${Math.abs(costDifference).toFixed(1)}m`
-        };
-      });
-      
-      setPlayerSpecificSuggestions(formattedSuggestions);
-    } catch (error) {
-      console.error("Error getting player suggestions:", error);
-    } finally {
-      setLoadingPlayerSuggestions(false);
+        // Close the suggestions modal
+        setShowSuggestions(false);
+        setSelectedPlayerForSwap(null);
+        forceRefresh();
+      } else if (result.message) {
+        // Show error message
+        setErrorMessage(result.message);
+        // Clear error after 3 seconds
+        setTimeout(() => setErrorMessage(null), 3000);
+      }
     }
-  }, [allFormattedPlayers, myTeam, bank]);
+  }, [allFormattedPlayers, swapPlayer, forceRefresh, convertToExtendedPlayer, setPersistedBudget]);
   
-  // Function to render the player selection sidebar
+  // Render price in a consistent way
+  const renderPlayerPrice = useCallback((player: TeamPlayer) => {
+    // Use selling_price if available, otherwise use price or now_cost/10
+    const priceToShow = player.selling_price !== undefined && player.selling_price > 0 
+      ? player.selling_price 
+      : player.price 
+        ? player.price 
+        : ((player.now_cost || 0) / 10);
+    
+    return (
+      <div className={`w-10 py-0.5 rounded text-[10px] text-center bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200`}>
+        £{priceToShow.toFixed(1)}m
+      </div>
+    );
+  }, []);
+  
+  // Function to render the player selection sidebar with virtualization
   const renderPlayerSelection = () => {
     // Calculate the correct budget to display
     return (
@@ -351,10 +381,12 @@ export default function TeamBuilder() {
             <input
               type="text"
               placeholder="Search player or team..."
-              value={searchTerm}
+              value={searchInputValue}
               onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1); // Reset to first page on search
+                setSearchInputValue(e.target.value);
+                // Search will be debounced by useDebounce hook
+                // Reset to first page on search
+                setCurrentPage(1);
               }}
               className="w-full p-1 pl-6 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-white dark:bg-slate-700 text-xs"
             />
@@ -369,76 +401,46 @@ export default function TeamBuilder() {
           </div>
         </div>
         
-        {/* Player list */}
-        <div id="player-list" className="flex-1 overflow-y-auto bg-white/10 rounded-md min-h-0 max-h-[70vh] lg:max-h-none">
+        {/* Player list with virtualization */}
+        <div id="player-list" className="flex-1 bg-white/10 rounded-md min-h-0 max-h-[70vh] lg:max-h-none">
           {loadingTeam ? (
             <div className="h-full flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
             </div>
-          ) : currentPlayers.length === 0 ? (
+          ) : sortedPlayers.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <p className="text-white text-sm">No players match your filters</p>
             </div>
           ) : (
-            <div className="flex flex-col h-full p-1">
-              {currentPlayers.map((player) => {
-                // Check if the player is already in the team
+            <FixedSizeList
+              height={isMobile() ? 400 : 500}
+              width="100%"
+              itemCount={sortedPlayers.length}
+              itemSize={62} // Height of each player row
+              className="scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent"
+            >
+              {({ index, style }: ListChildComponentProps) => {
+                const player = sortedPlayers[index];
                 const isInTeam = myTeam.some(p => p.id === player.id);
                 
                 return (
-                  <div 
-                    key={player.id}
-                    className={`flex items-stretch h-[calc(100%/20-2px)] my-[1px] rounded-md text-xs ${
-                      isInTeam 
-                        ? 'bg-blue-600/50 text-white border border-blue-400/50 cursor-not-allowed'
-                        : 'bg-white/90 dark:bg-slate-700/90 text-gray-800 dark:text-white border border-transparent hover:border-blue-300 cursor-pointer'
-                    }`}
-                    onClick={() => {
-                      if (!isInTeam) {
-                        handleAddPlayer(player.id);
-                      }
-                    }}
-                  >
-                    <div className="flex flex-col justify-center px-2 overflow-hidden flex-1">
-                      <div className="flex items-center space-x-1">
-                        <div 
-                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            player.position === 'GKP' ? 'bg-yellow-500' :
-                            player.position === 'DEF' ? 'bg-blue-500' :
-                            player.position === 'MID' ? 'bg-green-500' :
-                            'bg-red-500'
-                          }`}
-                        />
-                        <div className="font-medium truncate">{player.web_name}</div>
-                      </div>
-                      <div className="text-gray-500 dark:text-gray-400 text-[9px] ml-2.5">
-                        {player.team_short_name} • {player.position}
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col justify-center items-end gap-0.5 flex-shrink-0 px-2">
-                      {player.predicted_points !== undefined && (
-                        <div className={`w-10 py-0.5 rounded text-[10px] text-center ${
-                          player.predicted_points > 0 
-                            ? 'bg-green-600/90 text-white' 
-                            : 'bg-gray-500/80 text-white'
-                        }`}>
-                          {player.predicted_points.toFixed(1)}
-                        </div>
-                      )}
-                      {renderPlayerPrice(player)}
-                    </div>
+                  <div style={style} className="px-1">
+                    <OptimizedPlayerCard 
+                      player={player}
+                      isInTeam={isInTeam}
+                      onSelect={() => handleAddPlayer(player.id)}
+                    />
                   </div>
                 );
-              })}
-            </div>
+              }}
+            </FixedSizeList>
           )}
         </div>
         
         {/* Pagination controls */}
         <div className="flex justify-between mt-2 pt-2 sticky bottom-0 bg-gradient-to-b from-blue-800 to-blue-900 rounded-b-lg">
           <button
-            onClick={handlePrevPage}
+            onClick={() => setCurrentPage(curr => Math.max(curr - 1, 1))}
             disabled={currentPage <= 1}
             className={`px-3 py-1 text-xs rounded-md ${
               currentPage <= 1
@@ -449,7 +451,7 @@ export default function TeamBuilder() {
             Previous
           </button>
           <button
-            onClick={handleNextPage}
+            onClick={() => setCurrentPage(curr => Math.min(curr + 1, totalPages))}
             disabled={currentPage >= totalPages}
             className={`px-3 py-1 text-xs rounded-md ${
               currentPage >= totalPages
@@ -464,35 +466,68 @@ export default function TeamBuilder() {
     );
   };
   
-  // New function to render the player price details
-  const renderPlayerPrice = (player: TeamPlayer) => {
-    // If selling price is available and not zero, show it
-    if (player.selling_price !== undefined && player.selling_price > 0) {
-      // When selling price differs from current value, show both
-      if (player.price && player.selling_price !== player.price) {
-        return (
-          <div className="text-xs">
-            <span className="font-medium">£{player.selling_price.toFixed(1)}m</span>
-            <span className="text-gray-500 dark:text-gray-400 ml-1">(£{player.price.toFixed(1)}m)</span>
-          </div>
-        );
-      } else {
-        // Just show the selling price
-        return (
-          <div className="text-xs font-medium">
-            £{player.selling_price.toFixed(1)}m
-          </div>
-        );
-      }
-    }
+  // Function to get player-specific suggestions
+  const getPlayerSuggestions = useCallback(async (player: TeamPlayer) => {
+    if (!player || !allFormattedPlayers.length) return;
     
-    // Fall back to showing the player's price or now_cost/10
-    return (
-      <div className="text-xs font-medium">
-        £{player.price ? player.price.toFixed(1) : ((player.now_cost || 0) / 10).toFixed(1)}m
-      </div>
-    );
-  };
+    setSelectedPlayerForSwap(player);
+    setLoadingPlayerSuggestions(true);
+    
+    try {
+      // Find available players of the same position who are not in the team
+      const availableReplacements = allFormattedPlayers.filter(p => 
+        p.position === player.position && 
+        p.id !== player.id && 
+        !myTeam.some(teamPlayer => teamPlayer.id === p.id)
+      );
+      
+      // Sort by predicted points (highest first)
+      const sortedReplacements = [...availableReplacements].sort((a, b) => 
+        (b.predicted_points || 0) - (a.predicted_points || 0)
+      );
+      
+      // Take up to 5 players with better predicted points than the current player
+      const betterPlayers = sortedReplacements
+        .filter(p => (p.predicted_points || 0) > (player.predicted_points || 0))
+        .slice(0, 5);
+      
+      // If we don't have 5 better players, just take the top 5 anyway
+      const suggestions = betterPlayers.length >= 3 
+        ? betterPlayers 
+        : sortedReplacements.slice(0, 5);
+      
+      // Get player sell value (use selling_price if available)
+      const playerSellValue = typeof player.selling_price === 'number' ? player.selling_price : player.price;
+      
+      // Format as TeamSuggestion objects with correct budget calculations
+      const formattedSuggestions = suggestions.map(suggestion => {
+        // Get the current price (PP) of the incoming player - this is always now_cost/10
+        const incomingPlayerPP = suggestion.price || (suggestion.now_cost || 0) / 10;
+        
+        // Get the selling price (SP) of the outgoing player
+        const outgoingPlayerSP = playerSellValue;
+        
+        // Calculate price difference - positive means we gain money, negative means we spend
+        const costDifference = outgoingPlayerSP - incomingPlayerPP;
+        
+        return {
+          playerOut: player,
+          playerIn: suggestion,
+          pointsImprovement: (suggestion.predicted_points || 0) - (player.predicted_points || 0),
+          costDifference: costDifference,
+          costDifferenceLabel: costDifference > 0 
+            ? `Bank +£${costDifference.toFixed(1)}m` 
+            : `Bank -£${Math.abs(costDifference).toFixed(1)}m`
+        };
+      });
+      
+      setPlayerSpecificSuggestions(formattedSuggestions);
+    } catch (error) {
+      console.error("Error getting player suggestions:", error);
+    } finally {
+      setLoadingPlayerSuggestions(false);
+    }
+  }, [allFormattedPlayers, myTeam, bank]);
   
   // Update the renderPlayerSwapButton to use selling_price
   const renderPlayerSwapButton = (player: TeamPlayer) => {
@@ -644,28 +679,11 @@ export default function TeamBuilder() {
                               // Update the budget immediately before the swap to prevent flickering
                               setPersistedBudget(calculatedNewBudget);
                               
+                              // Convert the TeamPlayer to ExtendedPlayer before swapping
+                              const extendedPlayer = convertToExtendedPlayer(suggestion.playerIn, incomingPlayerPP);
+                              
                               // Execute the swap
-                              const swapResult = swapPlayer(selectedPlayerForSwap.id, {
-                                id: suggestion.playerIn.id,
-                                code: suggestion.playerIn.code || 0,
-                                web_name: suggestion.playerIn.web_name,
-                                team: suggestion.playerIn.team || 0,
-                                element_type: suggestion.playerIn.element_type,
-                                now_cost: suggestion.playerIn.now_cost || 0,
-                                selling_price: undefined, // Don't set a selling price for incoming player
-                                purchase_price: incomingPlayerPP, // Set purchase price to current price
-                                // Include other required fields or use defaults
-                                total_points: suggestion.playerIn.total_points || 0,
-                                goals_scored: 0,
-                                assists: 0,
-                                clean_sheets: 0,
-                                minutes: 0,
-                                form: suggestion.playerIn.form || "0",
-                                points_per_game: "0",
-                                selected_by_percent: "0",
-                                status: "",
-                                chance_of_playing_next_round: null
-                              } as ExtendedPlayer);
+                              const swapResult = swapPlayer(selectedPlayerForSwap.id, extendedPlayer);
                               
                               // Handle the result
                               if (!swapResult.success && swapResult.message) {
@@ -779,30 +797,6 @@ export default function TeamBuilder() {
       </div>
     );
   };
-  
-  // Add a helper function to handle player removal
-  const handleRemovePlayer = useCallback((playerId: number) => {
-    // Find the player we're removing to calculate the new bank value
-    const playerToRemove = myTeam.find(player => player.id === playerId);
-    
-    if (playerToRemove && bank !== null) {
-      // When removing a player, always use selling_price if available
-      const playerValue = playerToRemove.selling_price !== undefined 
-        ? playerToRemove.selling_price 
-        : playerToRemove.price;
-      
-      // Execute the removal
-      removePlayer(playerId);
-      
-      // Update our local tracking state for bank
-      const newBankValue = bank + playerValue;
-      setPersistedBudget(newBankValue);  // Update persisted budget immediately
-      forceRefresh(); // Force refresh after player removed
-    } else {
-      // If we can't find the player or don't have bank info, just remove without updating local state
-      removePlayer(playerId);
-    }
-  }, [myTeam, bank, removePlayer, setPersistedBudget, forceRefresh, persistedBudget]);
   
   // In the clearTeam handler, update to use setPersistedBudget instead of setLastBankUpdate
   const handleClearTeam = () => {
@@ -1021,28 +1015,11 @@ export default function TeamBuilder() {
                                       // Update the budget immediately before the swap to prevent flickering
                                       setPersistedBudget(calculatedNewBudget);
                                       
+                                      // Convert the TeamPlayer to ExtendedPlayer before swapping
+                                      const extendedPlayer = convertToExtendedPlayer(suggestion.playerIn, incomingPlayerPP);
+                                      
                                       // Execute the swap
-                                      const swapResult = swapPlayer(selectedPlayerForSwap.id, {
-                                        id: suggestion.playerIn.id,
-                                        code: suggestion.playerIn.code || 0,
-                                        web_name: suggestion.playerIn.web_name,
-                                        team: suggestion.playerIn.team || 0,
-                                        element_type: suggestion.playerIn.element_type,
-                                        now_cost: suggestion.playerIn.now_cost || 0,
-                                        selling_price: undefined, // Don't set a selling price for incoming player
-                                        purchase_price: incomingPlayerPP, // Set purchase price to current price
-                                        // Include other required fields or use defaults
-                                        total_points: suggestion.playerIn.total_points || 0,
-                                        goals_scored: 0,
-                                        assists: 0,
-                                        clean_sheets: 0,
-                                        minutes: 0,
-                                        form: suggestion.playerIn.form || "0",
-                                        points_per_game: "0",
-                                        selected_by_percent: "0",
-                                        status: "",
-                                        chance_of_playing_next_round: null
-                                      } as ExtendedPlayer);
+                                      const swapResult = swapPlayer(selectedPlayerForSwap.id, extendedPlayer);
                                       
                                       // Handle the result
                                       if (!swapResult.success && swapResult.message) {
@@ -1188,7 +1165,13 @@ export default function TeamBuilder() {
       {/* Import Team Modal */}
       <ImportTeamModal
         isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
+        onClose={(importSuccessful) => {
+          setShowImportModal(false);
+          // If import was successful, force a refresh to update UI with new budget
+          if (importSuccessful) {
+            forceRefresh();
+          }
+        }}
       />
     </div>
   );

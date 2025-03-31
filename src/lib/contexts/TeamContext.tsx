@@ -18,6 +18,7 @@ import {
 } from '../utils/teamBuilder';
 import { useFplData } from '../hooks/useFplData';
 import { getPlayerPurchaseInfo, getPlayerPriceMap } from '../utils/sellingPriceCalculator';
+import logger from '../utils/logger';
 
 interface TeamContextType {
   myTeam: TeamPlayer[];
@@ -81,7 +82,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (myTeam.length > 0 && bank === null) {
       setBank(MAX_BUDGET - teamCost);
-      console.log("[TEAM_BUDGET] Initializing bank for manual team:", MAX_BUDGET - teamCost);
+      logger.log("[TEAM_BUDGET] Initializing bank for manual team:", MAX_BUDGET - teamCost);
     }
   }, [myTeam.length, bank, teamCost]);
 
@@ -91,7 +92,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   
   // Debug logging for budget tracking
   useEffect(() => {
-    console.log("[TEAM_BUDGET] Budget values updated:", {
+    logger.debug("[TEAM_BUDGET] Budget values updated:", {
       teamCost,
       bank,
       actualBudget,
@@ -139,7 +140,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     // This ensures if removed immediately, they give back what they cost
     formattedPlayer.selling_price = currentPrice;
     
-    console.log("[ADD_PLAYER] Player price details:", {
+    logger.debug("[ADD_PLAYER] Player price details:", {
       playerName: formattedPlayer.web_name,
       currentPrice, 
       purchasePrice,
@@ -170,7 +171,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       const currentBank = prevBank ?? (MAX_BUDGET - teamCost);
       const updatedBank = currentBank - currentPrice;
       
-      console.log("[ADD_PLAYER] Bank updated:", { 
+      logger.debug("[ADD_PLAYER] Bank updated:", { 
         playerName: formattedPlayer.web_name,
         prevBank: currentBank, 
         playerPrice: currentPrice,
@@ -195,7 +196,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         ? playerToRemove.selling_price 
         : playerToRemove.price;
       
-      console.log("[REMOVE_PLAYER] Removing player:", {
+      logger.debug("[REMOVE_PLAYER] Removing player:", {
         playerName: playerToRemove.web_name,
         playerValue,
         currentBank: bank,
@@ -211,7 +212,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         const currentBank = prevBank ?? (MAX_BUDGET - teamCost);
         const updatedBank = currentBank + playerValue;
         
-        console.log("[REMOVE_PLAYER] Bank updated:", { 
+        logger.debug("[REMOVE_PLAYER] Bank updated:", { 
           prevBank: currentBank, 
           playerValue,
           updatedBank,
@@ -252,7 +253,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       return { success: false, message: 'Player to replace not found in team' };
     }
     
-    console.log("[SWAP_PLAYER] Players involved:", {
+    logger.debug("[SWAP_PLAYER] Players involved:", {
       outPlayer: oldPlayer.web_name,
       inPlayer: formattedPlayer.web_name,
       outPlayerCurrentValue: oldPlayer.price,
@@ -291,7 +292,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     const oldPlayerValue = oldPlayer.selling_price !== undefined ? oldPlayer.selling_price : oldPlayer.price;
     const newPlayerValue = formattedPlayer.price; // Always use current price for incoming player
     
-    console.log("[SWAP_PLAYER] Budget calculation:", {
+    logger.debug("[SWAP_PLAYER] Budget calculation:", {
       outPlayer: oldPlayer.web_name,
       oldPlayerValue,
       inPlayer: formattedPlayer.web_name,
@@ -307,7 +308,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       : (MAX_BUDGET - teamCost + oldPlayerValue); // Use max budget minus current team cost plus selling value
     
     // Add debugging for budget check
-    console.log("[SWAP_PLAYER] Budget check:", {
+    logger.debug("[SWAP_PLAYER] Budget check:", {
       availableBudget,
       newPlayerValue,
       sufficientBudget: newPlayerValue <= availableBudget,
@@ -338,7 +339,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       
       newBankValue = updatedBank; // Store for return value
       
-      console.log("[SWAP_PLAYER] Bank updated:", { 
+      logger.debug("[SWAP_PLAYER] Bank updated:", { 
         prevBank: currentBank, 
         priceDifference,
         updatedBank,
@@ -362,7 +363,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   
   // Clear the entire team
   const clearTeam = () => {
-    console.log("[CLEAR_TEAM] Clearing team and resetting budget values");
+    logger.log("[CLEAR_TEAM] Clearing team and resetting budget values");
     setMyTeam([]);
     setSuggestions([]);
     setBank(null);
@@ -388,7 +389,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       }
       
       const data = await response.json();
-      console.log("[IMPORT_TEAM] Team data received:", data);
+      logger.log("[IMPORT_TEAM] Team data received:", data);
       
       // Store bank and team value
       setBank(data.bank);
@@ -411,7 +412,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       // Process each player from the API response
       for (const playerData of data.players) {
         // Log detailed player pricing for debugging
-        console.log(`[IMPORT_TEAM] Processing player ${playerData.web_name} (ID: ${playerData.id}):`, {
+        logger.debug(`[IMPORT_TEAM] Processing player ${playerData.web_name} (ID: ${playerData.id}):`, {
           id: playerData.id,
           now_cost: playerData.now_cost,
           now_cost_decimal: playerData.now_cost / 10,
@@ -458,7 +459,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         formattedPlayer.is_vice_captain = playerData.is_vice_captain;
         
         // Log the final formatted player to verify prices
-        console.log(`[IMPORT_TEAM] Final formatted player ${formattedPlayer.web_name}:`, {
+        logger.debug(`[IMPORT_TEAM] Final formatted player ${formattedPlayer.web_name}:`, {
           price: formattedPlayer.price,
           selling_price: formattedPlayer.selling_price,
           purchase_price: formattedPlayer.purchase_price
@@ -470,7 +471,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       if (importedTeam.length > 0) {
         // Set the imported team
         setMyTeam(importedTeam);
-        console.log(`[IMPORT_TEAM] Team imported with ${importedTeam.length} players`);
+        logger.log(`[IMPORT_TEAM] Team imported with ${importedTeam.length} players`);
         
         setImportingTeam(false);
         return { 
@@ -482,7 +483,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         return { success: false, message: 'Failed to import team. Could not process player data.' };
       }
     } catch (error) {
-      console.error("[IMPORT_TEAM] Error importing team:", error);
+      logger.error("[IMPORT_TEAM] Error importing team:", error);
       setImportingTeam(false);
       return { success: false, message: 'Failed to import team. An error occurred.' };
     }
@@ -493,17 +494,17 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     if (myTeam.length > 0 && allFormattedPlayers.length > 0) {
       try {
         setLoadingSuggestions(true);
-        console.log("-----------------------------------------------");
-        console.log("GETTING SUGGESTIONS");
-        console.log("Team size:", myTeam.length);
-        console.log("Available players:", allFormattedPlayers.length);
-        console.log("Remaining budget:", remainingBudget);
-        console.log("-----------------------------------------------");
+        logger.log("-----------------------------------------------");
+        logger.log("GETTING SUGGESTIONS");
+        logger.log("Team size:", myTeam.length);
+        logger.log("Available players:", allFormattedPlayers.length);
+        logger.log("Remaining budget:", remainingBudget);
+        logger.log("-----------------------------------------------");
         
         // Make sure we have predicted points in both myTeam and allFormattedPlayers
         const teamWithPredictions = myTeam.map(player => {
           if (!player) {
-            console.error("Found null player in team");
+            logger.error("Found null player in team");
             return { 
               id: 0,
               web_name: "Unknown",
@@ -545,27 +546,27 @@ export function TeamProvider({ children }: { children: ReactNode }) {
             );
             
             if (teamSuggestions.length > 0) {
-              console.log(`Found ${teamSuggestions.length} suggestions`);
+              logger.log(`Found ${teamSuggestions.length} suggestions`);
               setSuggestions(teamSuggestions);
               setLoadingSuggestions(false);
             } else {
-              console.log("No suggestions found");
+              logger.log("No suggestions found");
               setSuggestions([]);
               setLoadingSuggestions(false);
             }
           } catch (error) {
-            console.error("Error generating suggestions:", error);
+            logger.error("Error generating suggestions:", error);
             setSuggestions([]);
             setLoadingSuggestions(false);
           }
         }, 100); // Small delay to allow UI to update
       } catch (error) {
-        console.error("Error in getSuggestions:", error);
+        logger.error("Error in getSuggestions:", error);
         setSuggestions([]);
         setLoadingSuggestions(false);
       }
     } else {
-      console.log("Cannot generate suggestions - team or player data missing");
+      logger.log("Cannot generate suggestions - team or player data missing");
       setLoadingSuggestions(false);
     }
   };
