@@ -14,19 +14,17 @@ export default function Home() {
     predictedPoints, 
     futurePredictions,
     loading, 
-    error, 
-    refreshData 
+    error
   } = useFplData();
 
   if (error && !loading) {
-    return <ErrorDisplay error={error} onRetry={refreshData} />;
+    return <ErrorDisplay error={error} />;
   }
 
   return (
     <div className="min-h-screen bg-light-background dark:bg-dark-background">
       <Header 
         currentGameweek={currentGameweek} 
-        onRefresh={refreshData}
         loading={loading}
       />
       

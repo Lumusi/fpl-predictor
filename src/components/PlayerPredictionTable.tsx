@@ -194,25 +194,25 @@ export default function PlayerPredictionTable({
         
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <table className="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-light-background dark:bg-dark-card/50">
               <tr>
-                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-12 text-center">
+                <th scope="col" className="px-2 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-10 text-center">
                   Rank
                 </th>
-                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-16 text-center">
+                <th scope="col" className="px-2 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-14 text-center">
                   Image
                 </th>
-                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
+                <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
                   Player
                 </th>
-                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
+                <th scope="col" className="px-2 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-16 text-center">
                   Pts
                 </th>
-                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
+                <th scope="col" className="px-2 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-16 text-center">
                   £
                 </th>
-                <th scope="col" className="px-3 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-24 text-center">
+                <th scope="col" className="px-2 py-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider w-20 text-center">
                   Form
                 </th>
               </tr>
@@ -223,11 +223,11 @@ export default function PlayerPredictionTable({
                   key={player.id} 
                   className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
                     {indexOfFirstPlayer + index + 1}
                   </td>
                   <td className="px-2 py-4 whitespace-nowrap text-center">
-                    <div className="w-12 h-12 mx-auto relative rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
+                    <div className="w-10 h-10 mx-auto relative rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
                       <div className={`${imagesLoaded[player.id] ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 w-full h-full flex items-center justify-center`}>
                         <Image
                           src={getPlayerImageUrl(player)}
@@ -245,22 +245,22 @@ export default function PlayerPredictionTable({
                       </div>
                       {!imagesLoaded[player.id] && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                          <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
                         </div>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap">
+                  <td className="px-2 py-4 w-auto">
                     <div className="flex items-center">
-                      <div className="ml-0">
-                        <div className="flex items-center">
+                      <div className="ml-0 w-full">
+                        <div className="flex flex-wrap items-center">
                           <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary">
                             {player.web_name}
                           </div>
                           {/* Only show home/away and DGW badges in single gameweek view */}
                           {!isTotal && (
                             <>
-                              <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              <span className={`ml-1 px-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                 player.home_game 
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                                 : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500'
@@ -270,14 +270,14 @@ export default function PlayerPredictionTable({
                               
                               {/* Show double/triple gameweek badge only in single view */}
                               {player.fixture_count && player.fixture_count > 1 && (
-                                <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                <span className="ml-1 px-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                   {player.fixture_count === 2 ? 'DGW' : `${player.fixture_count}GW`}
                                 </span>
                               )}
                             </>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        <div className="flex flex-wrap items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary max-w-full">
                           <span>{player.team_short_name}</span>
                           <span>•</span>
                           <span className="font-medium">{player.position}</span>
@@ -304,7 +304,7 @@ export default function PlayerPredictionTable({
                             <>
                               <span>•</span>
                               <span 
-                                className="font-medium"
+                                className="font-medium break-words overflow-hidden max-w-xs inline-flex flex-wrap gap-1"
                                 dangerouslySetInnerHTML={{ __html: player.opponents }}
                               />
                             </>
@@ -313,17 +313,17 @@ export default function PlayerPredictionTable({
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-center">
+                  <td className="px-2 py-4 whitespace-nowrap text-center">
                     <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{player.predicted_points.toFixed(1)}</div>
                     <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{player.total_points} total</div>
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-center">
+                  <td className="px-2 py-4 whitespace-nowrap text-center">
                     <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary">£{player.price.toFixed(1)}m</div>
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-right pr-4">
+                  <td className="px-2 py-4 whitespace-nowrap text-right pr-2">
                     <button 
                       onClick={() => handleViewStats(player)}
-                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-300 rounded-md transition-colors text-sm whitespace-nowrap"
+                      className="px-2 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-300 rounded-md transition-colors text-sm whitespace-nowrap"
                     >
                       View Stats
                     </button>

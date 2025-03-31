@@ -1,5 +1,56 @@
 import { Player, Team, Fixture } from '../services/fplApi';
 import { POSITION_MAP } from './teamBuilder';
+import logger from './logger';
+
+// Constants for prediction algorithm
+const PREDICTION_CONSTANTS = {
+  // Weights
+  BASE_POINTS_WEIGHT: 0.8,        // Weight for points per game
+  FORM_WEIGHT: 0.5,               // Weight for form
+  HOME_ADVANTAGE_BOOST: 1.1,      // 10% boost for home games
+  
+  // Playing time factors
+  BASE_MINUTES_FACTOR: 0.7,       // Base factor for minutes played
+  ADDITIONAL_MINUTES_FACTOR: 0.3, // Additional factor for minutes played
+  MAX_MINUTES_DIVISOR: 900,       // Divisor for minutes played (cap at 1)
+  MIN_MINUTES_FACTOR: 0.1,        // Minimum factor for players with 0 minutes
+  
+  // Double gameweek scaling
+  FIXTURE_SCALING_FACTOR: 0.8,    // Scaling factor for multiple fixtures
+  
+  // Position-specific maximums
+  GOALKEEPER_MAX_POINTS: 8,
+  DEFENDER_MAX_POINTS: 12,
+  MIDFIELDER_MAX_POINTS: 15,
+  FORWARD_MAX_POINTS: 17,
+  
+  // Other factors
+  DEFAULT_FIXTURE_DIFFICULTY: 3,  // Medium difficulty by default
+  LOW_DIFFICULTY_THRESHOLD: 2,    // Threshold for low difficulty
+  DEFENDER_CLEAN_SHEET_BOOST: 1.2,// Extra points for defenders against weak teams
+  HOT_STRIKER_THRESHOLD: 5,       // Form threshold for hot strikers
+  HOT_STRIKER_BOOST: 1.2,         // Extra points for in-form strikers
+  
+  // Random variation
+  RANDOM_MIN: 0.85,               // Minimum random factor
+  RANDOM_RANGE: 0.3                // Random factor range (max = min + range)
+};
+
+// Simple memoization helper
+function memoize<T, R>(fn: (arg: T) => R): (arg: T) => R {
+  const cache = new Map<string, R>();
+  
+  return (arg: T) => {
+    const key = JSON.stringify(arg);
+    if (cache.has(key)) {
+      return cache.get(key)!;
+    }
+    
+    const result = fn(arg);
+    cache.set(key, result);
+    return result;
+  };
+}
 
 export interface PlayerPrediction {
   id: number;
@@ -29,6 +80,274 @@ export interface PlayerPrediction {
 }
 
 /**
+ * Get a player's team fixtures for a specific gameweek
+ */
+function getPlayerTeamFixtures(
+  player: Player,
+  fixtures: Fixture[],
+  gameweek: number
+): Fixture[] {
+  return fixtures
+    .filter(fixture => fixture.event === gameweek)
+    .filter(fixture => fixture.team_h === player.team || fixture.team_a === player.team);
+}
+
+/**
+ * Calculate average fixture difficulty for a player
+ */
+function calculateFixtureDifficulty(player: Player, fixtures: Fixture[]): { 
+  averageFixtureDifficulty: number;
+  homeGame: boolean;
+} {
+  if (fixtures.length === 0) {
+    return {
+      averageFixtureDifficulty: PREDICTION_CONSTANTS.DEFAULT_FIXTURE_DIFFICULTY,
+      homeGame: false
+    };
+  }
+  
+  // Calculate the average fixture difficulty across all fixtures
+  let totalDifficulty = 0;
+  
+  // Check if at least one fixture is a home game
+  const hasHomeGame = fixtures.some(fixture => fixture.team_h === player.team);
+  
+  // Sum up difficulty ratings across all fixtures
+  fixtures.forEach(fixture => {
+    if (fixture.team_h === player.team) {
+      // Home game difficulty
+      totalDifficulty += fixture.team_h_difficulty;
+    } else {
+      // Away game difficulty
+      totalDifficulty += fixture.team_a_difficulty;
+    }
+  });
+  
+  // Calculate average difficulty
+  const averageFixtureDifficulty = totalDifficulty / fixtures.length;
+  
+  return {
+    averageFixtureDifficulty,
+    homeGame: hasHomeGame
+  };
+}
+
+/**
+ * Calculate the difficulty factor for points adjustment
+ */
+function calculateDifficultyFactor(difficulty: number): number {
+  // Higher difficulty = fewer predicted points
+  // Scale: 1-5, with 1 being easiest
+  return 1 - ((difficulty - 1) / 6);
+}
+
+/**
+ * Calculate minutes-played factor for points adjustment
+ */
+function calculateMinutesFactor(minutes: number): number {
+  if (minutes <= 0) {
+    return PREDICTION_CONSTANTS.MIN_MINUTES_FACTOR;
+  }
+  
+  const minutesProportion = Math.min(
+    minutes / PREDICTION_CONSTANTS.MAX_MINUTES_DIVISOR, 
+    1
+  );
+  
+  return PREDICTION_CONSTANTS.BASE_MINUTES_FACTOR + 
+         (PREDICTION_CONSTANTS.ADDITIONAL_MINUTES_FACTOR * minutesProportion);
+}
+
+/**
+ * Apply position-specific adjustments to predicted points
+ */
+function applyPositionAdjustments(
+  predictedPoints: number,
+  elementType: number,
+  formValue: number,
+  fixtureDifficulty: number
+): number {
+  let adjustedPoints = predictedPoints;
+  
+  switch (elementType) {
+    case 1: // Goalkeepers
+      // Make prediction more conservative
+      adjustedPoints = Math.min(adjustedPoints, PREDICTION_CONSTANTS.GOALKEEPER_MAX_POINTS);
+      break;
+    
+    case 2: // Defenders
+      // Boost clean sheet potential for low difficulty
+      if (fixtureDifficulty <= PREDICTION_CONSTANTS.LOW_DIFFICULTY_THRESHOLD) {
+        adjustedPoints += PREDICTION_CONSTANTS.DEFENDER_CLEAN_SHEET_BOOST;
+      }
+      adjustedPoints = Math.min(adjustedPoints, PREDICTION_CONSTANTS.DEFENDER_MAX_POINTS);
+      break;
+    
+    case 3: // Midfielders
+      // Slightly more volatile
+      adjustedPoints = Math.min(adjustedPoints, PREDICTION_CONSTANTS.MIDFIELDER_MAX_POINTS);
+      break;
+    
+    case 4: // Forwards
+      // Boom or bust scoring pattern
+      if (formValue > PREDICTION_CONSTANTS.HOT_STRIKER_THRESHOLD) {
+        adjustedPoints *= PREDICTION_CONSTANTS.HOT_STRIKER_BOOST; // Hot strikers tend to keep scoring
+      }
+      adjustedPoints = Math.min(adjustedPoints, PREDICTION_CONSTANTS.FORWARD_MAX_POINTS);
+      break;
+  }
+  
+  return adjustedPoints;
+}
+
+/**
+ * Calculate fixture scaling for double/triple gameweeks
+ */
+function calculateFixtureScaling(fixtureCount: number): number {
+  if (fixtureCount <= 1) return 1;
+  
+  // Scale factor decreases as fixture count increases
+  // e.g., 1.8x for 2 fixtures, 2.4x for 3 fixtures, etc.
+  return 1 + (fixtureCount - 1) * PREDICTION_CONSTANTS.FIXTURE_SCALING_FACTOR;
+}
+
+/**
+ * Apply random variation factor
+ */
+function applyRandomVariation(points: number): number {
+  const randomFactor = PREDICTION_CONSTANTS.RANDOM_MIN + 
+                       (Math.random() * PREDICTION_CONSTANTS.RANDOM_RANGE);
+  return points * randomFactor;
+}
+
+/**
+ * Calculate predicted points for a single player
+ */
+function calculatePlayerPrediction(
+  player: Player,
+  playerTeam: Team | undefined,
+  teamFixtures: Fixture[],
+  teams: Team[]
+): PlayerPrediction {
+  // Calculate formatted opponent information
+  const opponentTeamsFormatted = teamFixtures.map(fixture => {
+    const opponentId = fixture.team_h === player.team ? fixture.team_a : fixture.team_h;
+    // Get the actual opponent team
+    const opponentTeam = teams.find(team => team.id === opponentId);
+    const isHome = fixture.team_h === player.team;
+    
+    // Get the difficulty for this specific fixture
+    const difficulty = isHome ? fixture.team_h_difficulty : fixture.team_a_difficulty;
+    
+    // Format with colors based on difficulty
+    return formatOpponentWithDifficulty(
+      opponentTeam?.short_name || 'UNK',
+      isHome,
+      difficulty
+    );
+  });
+  
+  // Create colored HTML version and plain text version
+  const opponentsHtml = opponentTeamsFormatted.map(t => t.html).join(', ');
+  const opponentsPlain = opponentTeamsFormatted.map(t => t.plain).join(', ');
+  
+  // Calculate if this is a double gameweek (or more)
+  const fixtureCount = teamFixtures.length;
+  
+  // Calculate fixture difficulty and home advantage
+  const { averageFixtureDifficulty, homeGame } = calculateFixtureDifficulty(player, teamFixtures);
+  
+  // Convert form and points_per_game to numbers
+  const formValue = parseFloat(player.form || '0');
+  const ppgValue = parseFloat(player.points_per_game || '0');
+  
+  // Calculate predicted points based on various factors
+  let predictedPoints = 0;
+  
+  // Calculate base points using player's points per game as the foundation
+  predictedPoints = ppgValue * PREDICTION_CONSTANTS.BASE_POINTS_WEIGHT;
+  
+  // Add form factor (recent performance)
+  predictedPoints += formValue * PREDICTION_CONSTANTS.FORM_WEIGHT;
+  
+  // Apply fixture difficulty adjustment
+  const difficultyFactor = calculateDifficultyFactor(averageFixtureDifficulty);
+  predictedPoints *= difficultyFactor;
+  
+  // Apply home advantage if at least one fixture is at home
+  if (homeGame) {
+    predictedPoints *= PREDICTION_CONSTANTS.HOME_ADVANTAGE_BOOST;
+  }
+  
+  // Playing time probability adjustment
+  const minutesFactor = calculateMinutesFactor(player.minutes);
+  predictedPoints *= minutesFactor;
+  
+  // Injury/availability adjustment
+  if (player.chance_of_playing_next_round !== null && player.chance_of_playing_next_round < 100) {
+    predictedPoints *= player.chance_of_playing_next_round / 100;
+  }
+  
+  // Position-specific adjustments
+  predictedPoints = applyPositionAdjustments(
+    predictedPoints, 
+    player.element_type, 
+    formValue, 
+    averageFixtureDifficulty
+  );
+  
+  // For double gameweeks (or more), scale up points
+  if (fixtureCount > 1) {
+    const scaleFactor = calculateFixtureScaling(fixtureCount);
+    predictedPoints *= scaleFactor;
+  }
+  
+  // Add small random factor for natural variation
+  predictedPoints = applyRandomVariation(predictedPoints);
+  
+  // Ensure no negative points
+  predictedPoints = Math.max(0, predictedPoints);
+  
+  // Ensure element_type and position are always included
+  const elementType = player.element_type || 0;
+  const position = POSITION_MAP[elementType as keyof typeof POSITION_MAP] || 'Unknown';
+  
+  // Return prediction object
+  return {
+    id: player.id,
+    code: player.code,
+    web_name: player.web_name,
+    first_name: player.first_name,
+    second_name: player.second_name,
+    team: player.team,
+    team_short_name: playerTeam?.short_name,
+    team_name: playerTeam?.name,
+    predicted_points: Number(predictedPoints.toFixed(2)),
+    form: player.form,
+    price: player.now_cost / 10,
+    points_per_game: player.points_per_game,
+    minutes: player.minutes,
+    total_points: player.total_points,
+    goals_scored: player.goals_scored,
+    assists: player.assists,
+    fixture_difficulty: averageFixtureDifficulty,
+    home_game: homeGame,
+    element_type: elementType,
+    position: position,
+    fixture_count: fixtureCount,
+    covered_gameweeks: [],
+    opponents: opponentsHtml,
+    opponentsPlain: opponentsPlain
+  };
+}
+
+// Memoized version of calculatePlayerPrediction to reuse results for the same inputs
+const memoizedCalculatePlayerPrediction = memoize(
+  (params: { player: Player, playerTeam: Team | undefined, teamFixtures: Fixture[], teams: Team[] }) => 
+    calculatePlayerPrediction(params.player, params.playerTeam, params.teamFixtures, params.teams)
+);
+
+/**
  * Calculate predicted points for players in the next gameweek
  */
 export function predictPlayerPoints(
@@ -37,11 +356,12 @@ export function predictPlayerPoints(
   fixtures: Fixture[],
   gameweek: number
 ): PlayerPrediction[] {
-  console.log(`Predicting points for gameweek ${gameweek} for ${players.length} players`);
+  logger.time('predictPlayerPoints');
+  logger.log(`Predicting points for gameweek ${gameweek} for ${players.length} players`);
   
   // Get next gameweek fixtures
   const nextGameweekFixtures = fixtures.filter(fixture => fixture.event === gameweek);
-  console.log(`Found ${nextGameweekFixtures.length} fixtures for gameweek ${gameweek}`);
+  logger.log(`Found ${nextGameweekFixtures.length} fixtures for gameweek ${gameweek}`);
   
   const predictions: PlayerPrediction[] = players
     // Including all players, even those with 0 minutes
@@ -50,176 +370,29 @@ export function predictPlayerPoints(
       const playerTeam = teams.find(team => team.id === player.team);
       
       // Find ALL of player's team's fixtures for the next gameweek (to handle double gameweeks)
-      const teamFixtures = nextGameweekFixtures.filter(
-        fixture => fixture.team_h === player.team || fixture.team_a === player.team
-      );
+      const teamFixtures = getPlayerTeamFixtures(player, nextGameweekFixtures, gameweek);
       
-      // Get opponent teams with their short names with difficulty-based colors
-      const opponentTeamsFormatted = teamFixtures.map(fixture => {
-        const opponentId = fixture.team_h === player.team ? fixture.team_a : fixture.team_h;
-        const opponentTeam = teams.find(t => t.id === opponentId);
-        const isHome = fixture.team_h === player.team;
-        
-        // Get the difficulty for this specific fixture
-        const difficulty = isHome ? fixture.team_h_difficulty : fixture.team_a_difficulty;
-        
-        // Format with colors based on difficulty
-        return formatOpponentWithDifficulty(
-          opponentTeam?.short_name || 'UNK',
-          isHome,
-          difficulty
-        );
+      // Calculate the player prediction
+      return memoizedCalculatePlayerPrediction({
+        player, 
+        playerTeam, 
+        teamFixtures,
+        teams
       });
-      
-      // Create colored HTML version and plain text version
-      const opponentsHtml = opponentTeamsFormatted.map(t => t.html).join(', ');
-      const opponentsPlain = opponentTeamsFormatted.map(t => t.plain).join(', ');
-      
-      // Calculate if this is a double gameweek (or more)
-      const fixtureCount = teamFixtures.length;
-      
-      // Initialize fixture difficulty and home game status
-      let averageFixtureDifficulty = 3; // Medium difficulty by default
-      let homeGame = false; // Default to away for simplicity
-      
-      if (fixtureCount > 0) {
-        // Calculate the average fixture difficulty across all fixtures
-        let totalDifficulty = 0;
-        
-        // At least one fixture is home game
-        const hasHomeGame = teamFixtures.some(fixture => fixture.team_h === player.team);
-        homeGame = hasHomeGame;
-        
-        // Sum up difficulty ratings across all fixtures
-        teamFixtures.forEach(fixture => {
-          if (fixture.team_h === player.team) {
-            // Home game difficulty
-            totalDifficulty += fixture.team_h_difficulty;
-          } else {
-            // Away game difficulty
-            totalDifficulty += fixture.team_a_difficulty;
-          }
-        });
-        
-        // Calculate average difficulty
-        averageFixtureDifficulty = totalDifficulty / fixtureCount;
-      }
-      
-      // Convert form to number
-      const formValue = parseFloat(player.form || '0');
-      
-      // Convert points_per_game to number
-      const ppgValue = parseFloat(player.points_per_game || '0');
-      
-      // Calculate predicted points based on various factors
-      let predictedPoints = 0;
-      
-      // Calculate base points using player's points per game as the foundation
-      predictedPoints = ppgValue * 0.8; // Base points (80% weight)
-      
-      // Add form factor (recent performance)
-      predictedPoints += formValue * 0.5;
-      
-      // Apply fixture difficulty adjustment (scale: 1-5)
-      // Higher difficulty = fewer predicted points
-      const difficultyFactor = 1 - ((averageFixtureDifficulty - 1) / 6);
-      predictedPoints *= difficultyFactor;
-      
-      // Apply home advantage if at least one fixture is at home
-      if (homeGame) {
-        predictedPoints *= 1.1; // 10% boost for home games
-      }
-      
-      // Playing time probability adjustment - consider minutes played
-      // For players with 0 minutes, we'll use a low but non-zero factor
-      const minutesFactor = player.minutes > 0 ? Math.min(player.minutes / 900, 1) : 0.1; // Cap at 1
-      predictedPoints *= (0.7 + (0.3 * minutesFactor));
-      
-      // Injury/availability adjustment
-      if (player.chance_of_playing_next_round !== null && player.chance_of_playing_next_round < 100) {
-        predictedPoints *= player.chance_of_playing_next_round / 100;
-      }
-      
-      // Position-specific adjustments (reflecting how FPL scoring works)
-      if (player.element_type === 1) {
-        // Goalkeepers - make prediction more conservative
-        predictedPoints = Math.min(predictedPoints, 8);
-      } else if (player.element_type === 2) {
-        // Defenders - boost clean sheet potential for low difficulty
-        if (averageFixtureDifficulty <= 2) {
-          predictedPoints += 1.2;
-        }
-        predictedPoints = Math.min(predictedPoints, 12);
-      } else if (player.element_type === 3) {
-        // Midfielders - slightly more volatile
-        predictedPoints = Math.min(predictedPoints, 15);
-      } else if (player.element_type === 4) {
-        // Forwards - boom or bust scoring pattern
-        if (formValue > 5) {
-          predictedPoints *= 1.2; // Hot strikers tend to keep scoring
-        }
-        predictedPoints = Math.min(predictedPoints, 17);
-      }
-      
-      // For double gameweeks (or more), scale up points but not linearly
-      // This accounts for rotation risk and diminishing returns
-      if (fixtureCount > 1) {
-        // Scale factor decreases as fixture count increases
-        // e.g., 1.8x for 2 fixtures, 2.4x for 3 fixtures, etc.
-        const scaleFactor = 1 + (fixtureCount - 1) * 0.8;
-        predictedPoints *= scaleFactor;
-      }
-      
-      // Add small random factor for natural variation (max ±15%)
-      const randomFactor = 0.85 + (Math.random() * 0.3);
-      predictedPoints *= randomFactor;
-      
-      // Ensure no negative points and round to 2 decimal places
-      predictedPoints = Math.max(0, predictedPoints);
-      
-      // Ensure element_type and position are always included
-      const elementType = player.element_type || 0;
-      const position = POSITION_MAP[elementType as keyof typeof POSITION_MAP] || 'Unknown';
-      
-      // Return prediction object
-      return {
-        id: player.id,
-        code: player.code, // Include the player code for images
-        web_name: player.web_name,
-        first_name: player.first_name,
-        second_name: player.second_name,
-        team: player.team,
-        team_short_name: playerTeam?.short_name,
-        team_name: playerTeam?.name, // Add full team name
-        predicted_points: Number(predictedPoints.toFixed(2)),
-        form: player.form,
-        price: player.now_cost / 10, // Convert to actual price (in millions)
-        points_per_game: player.points_per_game,
-        minutes: player.minutes,
-        total_points: player.total_points,
-        goals_scored: player.goals_scored,
-        assists: player.assists,
-        fixture_difficulty: averageFixtureDifficulty,
-        home_game: homeGame,
-        element_type: elementType,
-        position: position,
-        fixture_count: fixtureCount, // Add number of fixtures in gameweek
-        covered_gameweeks: [],
-        opponents: opponentsHtml,
-        opponentsPlain: opponentsPlain
-      };
     })
     .sort((a, b) => b.predicted_points - a.predicted_points); // Sort by predicted points (highest first)
   
-  console.log(`Generated ${predictions.length} player predictions`);
-  console.log(`Top 5 predicted players:`, predictions.slice(0, 5).map(p => ({
+  // Log prediction summary information (only in development)
+  logger.log(`Generated ${predictions.length} player predictions`);
+  logger.debug(`Top 5 predicted players:`, predictions.slice(0, 5).map(p => ({
     name: p.web_name,
     points: p.predicted_points,
     team: p.team_short_name,
     position: p.position
   })));
-  console.log(`Percentage of players with predicted points > 0: ${(predictions.filter(p => p.predicted_points > 0).length / predictions.length * 100).toFixed(1)}%`);
+  logger.log(`Percentage of players with predicted points > 0: ${(predictions.filter(p => p.predicted_points > 0).length / predictions.length * 100).toFixed(1)}%`);
   
+  logger.timeEnd('predictPlayerPoints');
   return predictions;
 }
 
@@ -233,6 +406,7 @@ export function predictFutureGameweeks(
   currentGameweek: number,
   numberOfWeeks: number = 5
 ): Record<number, PlayerPrediction[]> {
+  logger.time('predictFutureGameweeks');
   const predictions: Record<number, PlayerPrediction[]> = {};
   
   for (let i = 0; i < numberOfWeeks; i++) {
@@ -240,6 +414,7 @@ export function predictFutureGameweeks(
     predictions[gameweek] = predictPlayerPoints(players, teams, fixtures, gameweek);
   }
   
+  logger.timeEnd('predictFutureGameweeks');
   return predictions;
 }
 
@@ -266,7 +441,7 @@ export function formatOpponentWithDifficulty(
   const homeAway = isHome ? '(H)' : '(A)';
   
   return {
-    html: `<span class="${colorClass} px-1 rounded">${teamName}${homeAway}</span>`,
+    html: `<span class="${colorClass} px-1 py-0.5 text-xs rounded">${teamName}${homeAway}</span>`,
     plain: `${teamName}${homeAway}`
   };
 }
@@ -279,6 +454,8 @@ export function calculateTotalPredictedPoints(
   gameweeks: number[] = [],
   teams?: Team[] // Add teams parameter to map team IDs to names
 ): PlayerPrediction[] {
+  logger.time('calculateTotalPredictedPoints');
+  
   // If no specific gameweeks provided, use all available gameweeks
   const targetGameweeks = gameweeks.length > 0 
     ? gameweeks 
@@ -348,8 +525,8 @@ export function calculateTotalPredictedPoints(
       // Format as "GW1: Team A, Team B; GW2: Team C"
       const opponentsListHtml = Array.from(opponentsByGw.entries())
         .sort((a, b) => a[0] - b[0])
-        .map(([gw, opponents]) => `GW${gw}: ${opponents.html}`)
-        .join('; ');
+        .map(([gw, opponents]) => `<span class="whitespace-nowrap">GW${gw}: ${opponents.html}</span>`)
+        .join(' ');
         
       const opponentsListPlain = Array.from(opponentsByGw.entries())
         .sort((a, b) => a[0] - b[0])
@@ -362,6 +539,9 @@ export function calculateTotalPredictedPoints(
   });
   
   // Convert map to array and sort by total predicted points
-  return Array.from(playerTotals.values())
+  const result = Array.from(playerTotals.values())
     .sort((a, b) => b.predicted_points - a.predicted_points);
+  
+  logger.timeEnd('calculateTotalPredictedPoints');
+  return result;
 } 

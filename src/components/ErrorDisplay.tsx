@@ -58,7 +58,7 @@ export default function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
           </>
         ) : (
           <>
-            This might be due to rate limiting or temporary API issues. Please try again later.
+            This might be due to rate limiting or temporary API issues. Please try refreshing the page later.
           </>
         )}
       </div>

@@ -30,7 +30,6 @@ export function findPlayerImage(playerId: number | string, fallbackId?: number |
     return useFallback ? '/images/placeholder-shirt.svg' : '';
   }
   
-  // When checking browser console, log the paths we're checking
   const paths = [];
   
   // List of possible paths to try in order
@@ -49,9 +48,6 @@ export function findPlayerImage(playerId: number | string, fallbackId?: number |
       paths.push(`/images/players/${parseInt(fallbackId, 10)}.png`);
     }
   }
-  
-  // Log the paths we're checking (for debugging)
-  console.log(`Searching for player image in paths: ${paths.join(', ')}`);
   
   // Always return the first path, as we can't check if files exist on the client side
   // The image component will handle fallbacks if the file doesn't exist

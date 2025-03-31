@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import { 
   getAllPlayers, 
@@ -9,6 +9,8 @@ import {
   Fixture 
 } from '../services/fplApi';
 import { predictPlayerPoints, predictFutureGameweeks } from '../utils/predictions';
+import { getSWRConfig } from './useSWRConfig';
+import logger from '../utils/logger';
 
 interface FplData {
   players: Player[];
@@ -22,16 +24,33 @@ interface FplData {
   refreshData: () => void;
 }
 
+// Environment helper
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 // Create a fetcher function for SWR
 const playerFetcher = async () => await getAllPlayers();
 const teamFetcher = async () => await getAllTeams();
 const fixtureFetcher = async () => await getFixtures();
 
 export function useFplData(gameweek?: number): FplData {
-  // Use SWR for data fetching with caching and revalidation
-  const { data: players, error: playersError, mutate: refreshPlayers } = useSWR<Player[]>('players', playerFetcher);
-  const { data: teams, error: teamsError, mutate: refreshTeams } = useSWR<Team[]>('teams', teamFetcher);
-  const { data: fixtures, error: fixturesError, mutate: refreshFixtures } = useSWR<Fixture[]>('fixtures', fixtureFetcher);
+  // Use SWR for data fetching with optimized caching and revalidation
+  const { data: players, error: playersError, mutate: refreshPlayers } = useSWR<Player[]>(
+    'players', 
+    playerFetcher, 
+    getSWRConfig('players')
+  );
+  
+  const { data: teams, error: teamsError, mutate: refreshTeams } = useSWR<Team[]>(
+    'teams', 
+    teamFetcher, 
+    getSWRConfig('teams')
+  );
+  
+  const { data: fixtures, error: fixturesError, mutate: refreshFixtures } = useSWR<Fixture[]>(
+    'fixtures', 
+    fixtureFetcher, 
+    getSWRConfig('fixtures')
+  );
   
   // Get current gameweek from fixtures
   const [currentGameweek, setCurrentGameweek] = useState<number>(gameweek || 0);
@@ -84,18 +103,49 @@ export function useFplData(gameweek?: number): FplData {
     }
   }, [fixtures, gameweek]);
   
-  // Generate predictions when all data is loaded
-  useEffect(() => {
+  // Use memoization for predictions to avoid recalculating unnecessarily
+  const memoizedPredictions = useMemo(() => {
     if (players && teams && fixtures && currentGameweek > 0) {
+      // Log prediction calculation start time (development only)
+      logger.time('predictions-calculation');
+      
       // Predict points for current gameweek
       const predictions = predictPlayerPoints(players, teams, fixtures, currentGameweek);
-      setPredictedPoints(predictions);
+      
+      // Log time taken (development only)
+      const duration = logger.timeEnd('predictions-calculation');
+      logger.log(`Predictions calculated in ${duration?.toFixed(2) || 'unknown'}ms`);
+      
+      return predictions;
+    }
+    return [];
+  }, [players, teams, fixtures, currentGameweek]);
+  
+  // Update state when memoized predictions change
+  useEffect(() => {
+    setPredictedPoints(memoizedPredictions);
+  }, [memoizedPredictions]);
+  
+  // Memoize future predictions calculation
+  const memoizedFuturePredictions = useMemo(() => {
+    if (players && teams && fixtures && currentGameweek > 0) {
+      logger.time('future-predictions-calculation');
       
       // Predict points for future gameweeks
       const futureGameweeks = predictFutureGameweeks(players, teams, fixtures, currentGameweek, 5);
-      setFuturePredictions(futureGameweeks);
+      
+      const duration = logger.timeEnd('future-predictions-calculation');
+      logger.log(`Future predictions calculated in ${duration?.toFixed(2) || 'unknown'}ms`);
+      
+      return futureGameweeks;
     }
+    return {};
   }, [players, teams, fixtures, currentGameweek]);
+  
+  // Update state when memoized future predictions change
+  useEffect(() => {
+    setFuturePredictions(memoizedFuturePredictions);
+  }, [memoizedFuturePredictions]);
   
   // Function to refresh all data
   const refreshData = async () => {

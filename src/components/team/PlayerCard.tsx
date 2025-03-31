@@ -40,14 +40,8 @@ export default function PlayerCard({
   // Get the player code for image URLs - this is different from the player.id
   const playerImageId = player.code || player.id;
 
-  // Add debug logging
-  console.log(`PlayerCard: Player ${player.web_name} - ID: ${player.id}, Code: ${player.code}, Image ID: ${playerImageId}`);
-
   // Use the more flexible image finder
   const localPlayerImageUrl = findPlayerImage(player.code || '', player.id);
-  
-  // Add debug logging for the image URL
-  console.log(`PlayerCard: Image URL for ${player.web_name}: ${localPlayerImageUrl}`);
   
   // Placeholder image for when local image fails
   const placeholderImageUrl = '/images/placeholder-shirt.svg';
@@ -57,7 +51,6 @@ export default function PlayerCard({
   
   // Handle local image error - try Premier League API as fallback
   const handleLocalImageError = () => {
-    console.log(`PlayerCard: Local image error for ${player.web_name}, trying external image: ${plImageUrl}`);
     setLocalImageError(true);
     setUseExternalImage(true);
   };
@@ -93,7 +86,7 @@ export default function PlayerCard({
     
     return (
       <div 
-        className={`relative ${isPitchView ? 'bg-transparent' : 'bg-white rounded-md shadow-md'} overflow-hidden w-24 h-24 ${highlight ? 'ring-2 ring-blue-500' : ''} ${className}`}
+        className={`relative ${isPitchView ? 'bg-transparent' : 'bg-white rounded-md shadow-md'} overflow-visible w-24 h-24 ${highlight ? 'ring-2 ring-blue-500' : ''} ${className}`}
         style={{ 
           zIndex: isPitchView ? 4 : 1,
           backgroundColor: isPitchView ? 'transparent' : undefined
@@ -101,21 +94,25 @@ export default function PlayerCard({
       >
         {/* Player Image */}
         {showImage && (
-          <div className={`relative w-full h-full flex justify-center items-center bg-transparent`}>
+          <div className={`relative w-full h-full flex justify-center items-start bg-transparent overflow-visible`}>
             <div className={`${imageLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 w-full h-full`}>
               <Image
                 src={imageUrl}
                 alt={player.web_name}
-                width={isPitchView ? 100 : 80}
-                height={isPitchView ? 100 : 80}
-                className={`object-contain ${isPitchView ? 'drop-shadow-xl' : ''}`}
+                width={isPitchView ? 90 : 80}
+                height={isPitchView ? 90 : 80}
+                className={`${isPitchView ? 'drop-shadow-xl' : ''}`}
                 loading="lazy"
-                onLoadingComplete={handleImageLoaded}
+                onLoad={handleImageLoaded}
                 priority={false}
                 unoptimized={true}
                 style={{ 
                   height: 'auto', 
                   maxWidth: '100%',
+                  marginTop: isPitchView ? '15px' : '0',
+                  objectFit: isPitchView ? 'contain' : 'contain',
+                  transform: isPitchView ? 'scale(0.95)' : 'none',
+                  transformOrigin: 'center center',
                   filter: isPitchView ? 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' : 'none',
                   backgroundColor: 'transparent',
                   backgroundImage: 'none'
@@ -183,7 +180,7 @@ export default function PlayerCard({
               height={120}
               className="object-contain"
               loading="lazy"
-              onLoadingComplete={handleImageLoaded}
+              onLoad={handleImageLoaded}
               priority={false}
               unoptimized={true}
               style={{ height: 'auto', maxWidth: '100%' }}
@@ -220,7 +217,15 @@ export default function PlayerCard({
             </div>
           </div>
           <div className="text-sm font-bold">
-            £{player.now_cost && (player.now_cost / 10).toFixed(1)}m
+            £{
+              // Use selling_price if available and not zero
+              player.selling_price !== undefined && player.selling_price > 0 
+                ? player.selling_price.toFixed(1) 
+                // Otherwise use price or now_cost/10
+                : player.price 
+                  ? player.price.toFixed(1) 
+                  : ((player.now_cost || 0) / 10).toFixed(1)
+            }m
           </div>
         </div>
         
