@@ -43,7 +43,7 @@ export function useMemoizedCallback<T extends (...args: any[]) => any>(
  */
 export function usePrevious<T>(value: T): T | undefined {
   // Keep the previous value in a ref
-  const ref = useRef<T>();
+  const ref = useRef<T | undefined>(undefined);
   
   // Update the ref after each render
   useEffect(() => {
