@@ -209,6 +209,12 @@ class PerformanceStore {
 // Export singleton instance getter
 export const getPerformanceStore = () => PerformanceStore.getInstance();
 
+// Add this new export for recording custom metrics directly
+export const recordCustomMetric = (name: string, value: number): void => {
+  const store = getPerformanceStore();
+  store.recordCustomMetric(name, value);
+};
+
 // React hook to use performance metrics
 export function usePerformanceMetrics(): PerformanceMetrics {
   const [metrics, setMetrics] = useState<PerformanceMetrics>({
@@ -325,4 +331,78 @@ export function setupPerformanceMonitoring(): () => void {
   });
   
   return unsubscribe;
+}
+
+// Export frame rate monitoring function
+export function startFrameRateMonitoring(thresholdFps = 30, sampleSize = 10): () => void {
+  let frames = 0;
+  let lastTime = performance.now();
+  let frameRates: number[] = [];
+  let frameTimes: number[] = [];
+  let rafId: number | null = null;
+  
+  // Track if we're in low FPS mode
+  let isLowFpsDetected = false;
+  
+  const tick = () => {
+    frames++;
+    const now = performance.now();
+    const elapsed = now - lastTime;
+    
+    // Calculate FPS every second
+    if (elapsed >= 1000) {
+      const fps = Math.round((frames * 1000) / elapsed);
+      
+      // Record frame time (ms per frame)
+      const frameTime = elapsed / frames;
+      frameTimes.push(frameTime);
+      
+      // Keep the sample size limited
+      frameRates.push(fps);
+      if (frameRates.length > sampleSize) {
+        frameRates.shift();
+        frameTimes.shift();
+      }
+      
+      // Calculate average FPS over the sample
+      const avgFps = Math.round(
+        frameRates.reduce((sum, fps) => sum + fps, 0) / frameRates.length
+      );
+      
+      // Calculate average frame time
+      const avgFrameTime = frameTimes.reduce((sum, time) => sum + time, 0) / frameTimes.length;
+      
+      // Log performance data
+      if (avgFps < thresholdFps && !isLowFpsDetected) {
+        console.warn(`Low frame rate detected: ${avgFps} FPS, avg frame time: ${avgFrameTime.toFixed(2)}ms`);
+        recordCustomMetric('lowFpsDetected', 1);
+        isLowFpsDetected = true;
+      } else if (avgFps >= thresholdFps && isLowFpsDetected) {
+        console.info(`Frame rate recovered: ${avgFps} FPS`);
+        recordCustomMetric('lowFpsDetected', 0);
+        isLowFpsDetected = false;
+      }
+      
+      // Record fps metric
+      recordCustomMetric('currentFps', avgFps);
+      recordCustomMetric('avgFrameTime', avgFrameTime);
+      
+      // Reset counters
+      frames = 0;
+      lastTime = now;
+    }
+    
+    // Continue monitoring
+    rafId = requestAnimationFrame(tick);
+  };
+  
+  // Start monitoring
+  rafId = requestAnimationFrame(tick);
+  
+  // Return cleanup function
+  return () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+    }
+  };
 } 

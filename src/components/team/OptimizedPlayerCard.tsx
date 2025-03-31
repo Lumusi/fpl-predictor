@@ -1,4 +1,4 @@
-import React, { useState, memo, useEffect } from 'react';
+import React, { useState, memo, useEffect, useRef } from 'react';
 import { XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import { TeamPlayer } from '@/lib/utils/teamBuilder';
 import { isMobile } from '@/lib/utils/deviceUtils';
@@ -20,13 +20,36 @@ const OptimizedPlayerCard = memo(({
 }: OptimizedPlayerCardProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   
-  // Lower quality images on mobile for performance
-  const imageSize = isMobile() ? 40 : 60;
+  // Even smaller images on mobile for better performance
+  const imageSize = isMobile() ? 30 : 60;
+  
+  // Setup intersection observer for lazy loading
+  useEffect(() => {
+    if (!cardRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+    
+    observer.observe(cardRef.current);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   
   const playerImageUrl = player?.code 
-    ? `/player-photos/${player.code}.png` 
-    : '/player-photos/unknown.png';
+    ? `/images/players/${player.code}.png` 
+    : `/images/placeholder-player.svg`;
   
   // Get optimized image properties with correct sizing for device
   const imageProps = getOptimizedImageProps(playerImageUrl, {
@@ -34,8 +57,8 @@ const OptimizedPlayerCard = memo(({
     width: imageSize,
     height: imageSize,
     loading: 'lazy',
-    // Improve mobile performance with smaller images
-    quality: isMobile() ? 60 : 80,
+    // Further reduce quality on mobile for better performance
+    quality: isMobile() ? 40 : 70,
     format: 'webp'
   });
   
@@ -44,6 +67,7 @@ const OptimizedPlayerCard = memo(({
   
   return (
     <div 
+      ref={cardRef}
       className={`flex items-stretch h-[60px] my-[1px] rounded-md text-xs ${
         isInTeam 
           ? 'bg-blue-600/50 text-white border border-blue-400/50 cursor-not-allowed'
@@ -59,22 +83,26 @@ const OptimizedPlayerCard = memo(({
         {/* Player image with loading state */}
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 animate-pulse">
-            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+            <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700"></div>
           </div>
         )}
         
-        {/* Actual player image */}
-        <img
-          {...imageProps}
-          className={`object-cover transition-opacity duration-300 ${
-            imageLoaded && !imageError ? 'opacity-100' : 'opacity-0'
-          }`}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => {
-            setImageError(true);
-            setImageLoaded(true); // Still mark as loaded to remove placeholder
-          }}
-        />
+        {/* Only load image when visible in viewport */}
+        {isVisible && (
+          <img
+            {...imageProps}
+            className={`object-cover transition-opacity duration-300 ${
+              imageLoaded && !imageError ? 'opacity-100' : 'opacity-0'
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => {
+              setImageError(true);
+              setImageLoaded(true); // Still mark as loaded to remove placeholder
+            }}
+            width={imageSize}
+            height={imageSize}
+          />
+        )}
         
         {/* Fallback for error state */}
         {imageError && (
@@ -103,7 +131,7 @@ const OptimizedPlayerCard = memo(({
       
       <div className="flex flex-col justify-center items-end gap-0.5 flex-shrink-0 px-2">
         {player.predicted_points !== undefined && (
-          <div className={`w-10 py-0.5 rounded text-[10px] text-center ${
+          <div className={`w-9 py-0.5 rounded text-[10px] text-center ${
             player.predicted_points > 0 
               ? 'bg-green-600/90 text-white' 
               : 'bg-gray-500/80 text-white'
@@ -111,7 +139,7 @@ const OptimizedPlayerCard = memo(({
             {player.predicted_points.toFixed(1)}
           </div>
         )}
-        <div className={`w-10 py-0.5 rounded text-[10px] text-center bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200`}>
+        <div className={`w-9 py-0.5 rounded text-[10px] text-center bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200`}>
           £{((player.now_cost || 0) / 10).toFixed(1)}m
         </div>
       </div>

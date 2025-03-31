@@ -1,11 +1,97 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { isMobile } from '@/lib/utils/deviceUtils';
-import { setupPerformanceMonitoring } from '@/lib/utils/performanceMonitoring';
+import { setupPerformanceMonitoring, recordCustomMetric, startFrameRateMonitoring } from '@/lib/utils/performanceMonitoring';
 
 interface MobileAppShellProps {
   children: React.ReactNode;
+}
+
+// Network quality detection and connection throttling
+class NetworkMonitor {
+  private static instance: NetworkMonitor;
+  private slowConnection = false;
+  private observers: ((isSlowConnection: boolean) => void)[] = [];
+  
+  private constructor() {
+    this.detectNetworkQuality();
+    this.setupNetworkListeners();
+  }
+  
+  public static getInstance(): NetworkMonitor {
+    if (!NetworkMonitor.instance) {
+      NetworkMonitor.instance = new NetworkMonitor();
+    }
+    return NetworkMonitor.instance;
+  }
+  
+  private detectNetworkQuality() {
+    // Check connection type if available
+    if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+      const conn = (navigator as any).connection;
+      if (conn) {
+        // Update slow connection state based on connection type
+        const connectionTypes = ['slow-2g', '2g', 'cellular'];
+        this.slowConnection = connectionTypes.includes(conn.effectiveType) || 
+          (conn.downlink && conn.downlink < 1.0) ||
+          (conn.rtt && conn.rtt > 500);
+          
+        if (this.slowConnection) {
+          console.info('Slow connection detected, enabling data saving mode');
+        }
+        
+        // Save to performance metrics
+        recordCustomMetric('networkType', conn.effectiveType);
+        recordCustomMetric('networkDownlink', conn.downlink);
+        recordCustomMetric('networkRtt', conn.rtt);
+      }
+    }
+  }
+  
+  private setupNetworkListeners() {
+    // Add event listeners if available
+    if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+      const conn = (navigator as any).connection;
+      if (conn) {
+        conn.addEventListener('change', () => {
+          this.detectNetworkQuality();
+          this.notifyObservers();
+        });
+      }
+    }
+    
+    // Also monitor for offline/online events
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.notifyObservers();
+      });
+      
+      window.addEventListener('offline', () => {
+        this.slowConnection = true;
+        this.notifyObservers();
+      });
+    }
+  }
+  
+  public isSlowConnection(): boolean {
+    return this.slowConnection;
+  }
+  
+  public subscribe(callback: (isSlowConnection: boolean) => void): () => void {
+    this.observers.push(callback);
+    callback(this.slowConnection);
+    
+    return () => {
+      this.observers = this.observers.filter(cb => cb !== callback);
+    };
+  }
+  
+  private notifyObservers(): void {
+    this.observers.forEach(callback => {
+      callback(this.slowConnection);
+    });
+  }
 }
 
 /**
@@ -15,11 +101,72 @@ interface MobileAppShellProps {
  * - Pull-to-refresh behavior
  * - "Add to homescreen" prompt
  * - Performance monitoring for mobile devices
+ * - Network quality detection and optimization
  */
 export default function MobileAppShell({ children }: MobileAppShellProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [isLowEndDevice, setIsLowEndDevice] = useState(false);
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
+  const [isLowPowerMode, setIsLowPowerMode] = useState(false);
+  
+  // Detect low-end devices
+  useEffect(() => {
+    if (!isMobile()) return;
+    
+    // Check device memory
+    if (typeof navigator !== 'undefined' && 'deviceMemory' in navigator) {
+      const memory = (navigator as any).deviceMemory;
+      if (memory && memory < 4) {
+        setIsLowEndDevice(true);
+        console.info(`Low memory device detected (${memory}GB), enabling lite mode`);
+        recordCustomMetric('deviceMemory', memory);
+      }
+    }
+    
+    // Check for battery status if available
+    if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
+      (navigator as any).getBattery().then((battery: any) => {
+        // Check if device is charging and battery level
+        const updateBatteryStatus = () => {
+          // If battery level is below 15% and not charging, enable low power mode
+          if (battery.level < 0.15 && !battery.charging) {
+            setIsLowPowerMode(true);
+            console.info('Low battery detected, enabling power saving mode');
+          } else {
+            setIsLowPowerMode(false);
+          }
+          recordCustomMetric('batteryLevel', battery.level * 100);
+          recordCustomMetric('batteryCharging', battery.charging ? 1 : 0);
+        };
+        
+        // Initial check
+        updateBatteryStatus();
+        
+        // Add event listeners
+        battery.addEventListener('levelchange', updateBatteryStatus);
+        battery.addEventListener('chargingchange', updateBatteryStatus);
+        
+        return () => {
+          battery.removeEventListener('levelchange', updateBatteryStatus);
+          battery.removeEventListener('chargingchange', updateBatteryStatus);
+        };
+      }).catch(() => {
+        // Battery API not supported or permission denied
+      });
+    }
+  }, []);
+  
+  // Subscribe to network quality changes
+  useEffect(() => {
+    if (!isMobile()) return;
+    
+    const networkMonitor = NetworkMonitor.getInstance();
+    const unsubscribe = networkMonitor.subscribe(setIsSlowConnection);
+    
+    return unsubscribe;
+  }, []);
   
   // Fix viewport height on mobile devices
   useEffect(() => {
@@ -39,6 +186,9 @@ export default function MobileAppShell({ children }: MobileAppShellProps) {
     
     // Set up performance monitoring on mobile
     const unsubscribePerformance = setupPerformanceMonitoring();
+    
+    // Start frame rate monitoring on mobile devices
+    const unsubscribeFrameRate = startFrameRateMonitoring(25); // Lower threshold for mobile
     
     // Detect if app is installed or can be installed
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -91,8 +241,73 @@ export default function MobileAppShell({ children }: MobileAppShellProps) {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
       unsubscribePerformance();
+      unsubscribeFrameRate();
     };
   }, [isRefreshing]);
+  
+  // Apply specific optimizations when on low-end device or slow connection
+  useEffect(() => {
+    if (isLowEndDevice || isSlowConnection || isLowPowerMode) {
+      // Add data-saving class to body for CSS optimizations
+      document.body.classList.add('data-saving-mode');
+      
+      // Disable animations to improve performance
+      if (isLowEndDevice || isLowPowerMode) {
+        document.body.classList.add('reduce-motion');
+      }
+      
+      // Add performance CSS overrides
+      if (typeof document !== 'undefined') {
+        // Add CSS for performance mode if not already present
+        if (!document.getElementById('performance-mode-css')) {
+          const style = document.createElement('style');
+          style.id = 'performance-mode-css';
+          style.innerHTML = `
+            /* Reduce motion for low-end devices */
+            .reduce-motion * {
+              transition-duration: 0.05s !important;
+              animation-duration: 0.05s !important;
+            }
+            
+            /* Performance optimizations for data saving mode */
+            .data-saving-mode .animate-pulse {
+              animation: none !important;
+            }
+            
+            /* Reduce shadow complexity */
+            .data-saving-mode * {
+              box-shadow: none !important;
+              text-shadow: none !important;
+              backdrop-filter: none !important;
+            }
+            
+            /* Simplify gradients */
+            .data-saving-mode .bg-gradient-to-b,
+            .data-saving-mode .bg-gradient-to-r {
+              background-image: none !important;
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      }
+      
+      // Record device state for telemetry
+      recordCustomMetric('dataSavingMode', 1);
+      recordCustomMetric('lowEndDevice', isLowEndDevice ? 1 : 0);
+      recordCustomMetric('slowConnection', isSlowConnection ? 1 : 0);
+      recordCustomMetric('lowPowerMode', isLowPowerMode ? 1 : 0);
+      
+      return () => {
+        document.body.classList.remove('data-saving-mode');
+        document.body.classList.remove('reduce-motion');
+        // Remove the style element if it exists
+        const style = document.getElementById('performance-mode-css');
+        if (style) {
+          style.remove();
+        }
+      };
+    }
+  }, [isLowEndDevice, isSlowConnection, isLowPowerMode]);
   
   // If not on mobile, just render the children
   if (!isMobile()) {
@@ -100,7 +315,18 @@ export default function MobileAppShell({ children }: MobileAppShellProps) {
   }
   
   return (
-    <div className="mobile-app-shell" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div 
+      className="mobile-app-shell" 
+      style={{ height: 'calc(var(--vh, 1vh) * 100)' }}
+      data-saving-mode={isLowEndDevice || isSlowConnection || isLowPowerMode ? 'true' : 'false'}
+    >
+      {/* Network/device status indicator */}
+      {(isSlowConnection || isLowEndDevice || isLowPowerMode) && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white text-xs text-center py-0.5">
+          {isSlowConnection ? 'Slow connection' : isLowPowerMode ? 'Power saving mode' : 'Lite mode'} - Optimizing performance
+        </div>
+      )}
+      
       {/* Pull to refresh indicator */}
       {isRefreshing && (
         <div className="fixed top-0 left-0 right-0 z-50 flex justify-center py-2 bg-blue-500 text-white">

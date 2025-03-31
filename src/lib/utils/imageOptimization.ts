@@ -139,6 +139,7 @@ export function getOptimizedImageProps(
     sizes?: string;
     format?: 'webp' | 'jpeg' | 'png' | 'avif';
     quality?: number;
+    priority?: boolean;
   }
 ): React.ImgHTMLAttributes<HTMLImageElement> {
   // Extract options with defaults
@@ -149,16 +150,28 @@ export function getOptimizedImageProps(
     loading = isMobile() ? 'lazy' : 'eager',
     decoding = 'async',
     className,
-    sizes = '(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw',
-    format = 'webp',
-    quality = 80
+    sizes = isMobile() 
+      ? '100vw' // Mobile devices are full width
+      : '(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw',
+    format = isMobile() ? 'webp' : 'webp', // webp for all but could use avif for more modern browsers
+    quality = isMobile() ? 40 : 80, // Lower quality for mobile
+    priority = false
   } = options;
 
-  // Generate common widths for responsive images
-  const widths = [240, 480, 640, 768, 1024, 1280];
+  // Generate smaller widths for mobile to reduce network payload
+  const widths = isMobile() 
+    ? [120, 240, 320, 480] // Smaller sizes for mobile
+    : [240, 480, 640, 768, 1024, 1280];
+  
+  // For mobile, add fetchPriority="low" to deprioritize image loading
+  const fetchPriority = !priority && isMobile() ? 'low' : undefined;
   
   return {
-    src: getOptimizedImageUrl(src, { format, quality }),
+    src: getOptimizedImageUrl(src, { 
+      format, 
+      quality,
+      mobileWidth: isMobile() ? Math.min(width || 320, 320) : undefined
+    }),
     srcSet: generateSrcSet(src, widths, { format, quality }),
     alt,
     width,
@@ -166,6 +179,56 @@ export function getOptimizedImageProps(
     loading,
     decoding,
     className,
-    sizes
+    sizes,
+    fetchPriority
   };
+}
+
+// Add a new function to batch load images in priority order
+let batchQueue: { src: string, callback: () => void }[] = [];
+let isBatchProcessing = false;
+
+export function batchLoadImages(maxConcurrent = 2) {
+  if (isBatchProcessing || batchQueue.length === 0) return;
+  
+  isBatchProcessing = true;
+  
+  // Process up to maxConcurrent images at once
+  const batch = batchQueue.splice(0, maxConcurrent);
+  let completed = 0;
+  
+  batch.forEach(item => {
+    const img = new Image();
+    img.onload = img.onerror = () => {
+      // Call the callback when image loads or errors
+      item.callback();
+      
+      // When all in this batch are done, process the next batch
+      completed++;
+      if (completed === batch.length) {
+        isBatchProcessing = false;
+        if (batchQueue.length > 0) {
+          // Small delay to prevent UI thread blocking
+          setTimeout(() => batchLoadImages(maxConcurrent), 100);
+        }
+      }
+    };
+    img.src = item.src;
+  });
+}
+
+// Queue an image for batch loading
+export function queueImageLoad(src: string): Promise<void> {
+  return new Promise(resolve => {
+    batchQueue.push({ src, callback: resolve });
+    if (!isBatchProcessing) {
+      // Start processing if not already running
+      // Use requestIdleCallback if available for better performance
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => batchLoadImages(isMobile() ? 2 : 4));
+      } else {
+        setTimeout(() => batchLoadImages(isMobile() ? 2 : 4), 100);
+      }
+    }
+  });
 } 

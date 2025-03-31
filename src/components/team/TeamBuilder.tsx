@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, Fragment, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, Fragment, useEffect, memo } from 'react';
 import { useTeam } from '@/lib/contexts/TeamContext';
 import { FORMATION_CONSTRAINTS, POSITION_ID_MAP, ExtendedPlayer, MAX_BUDGET, TeamPlayer } from '@/lib/utils/teamBuilder';
 import PlayerCard from './PlayerCard';
@@ -47,6 +47,44 @@ Button.displayName = 'Button';
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
 }
+
+// Memoized FixedSizeList row renderer to prevent unnecessary re-renders
+const PlayerListRow = memo(({ data, index, style }: { 
+  data: { 
+    players: TeamPlayer[], 
+    team: TeamPlayer[], 
+    currentPage: number, 
+    playersPerPage: number,
+    onSelect: (id: number) => void 
+  }, 
+  index: number, 
+  style: React.CSSProperties 
+}) => {
+  const { players, team, currentPage, playersPerPage, onSelect } = data;
+  
+  // Only render players on the current page
+  if (
+    index < (currentPage - 1) * playersPerPage || 
+    index >= currentPage * playersPerPage
+  ) {
+    return <div style={style} className="px-1" />;
+  }
+  
+  const player = players[index];
+  const isInTeam = team.some((p: TeamPlayer) => p.id === player.id);
+  
+  return (
+    <div style={style} className="px-1">
+      <OptimizedPlayerCard 
+        player={player}
+        isInTeam={isInTeam}
+        onSelect={() => onSelect(player.id)}
+      />
+    </div>
+  );
+});
+
+PlayerListRow.displayName = 'PlayerListRow';
 
 export default function TeamBuilder() {
   const { 
@@ -413,26 +451,24 @@ export default function TeamBuilder() {
             </div>
           ) : (
             <FixedSizeList
-              height={isMobile() ? 400 : 500}
+              height={isMobile() ? 350 : 500}
               width="100%"
               itemCount={sortedPlayers.length}
               itemSize={62} // Height of each player row
               className="scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent"
-            >
-              {({ index, style }: ListChildComponentProps) => {
-                const player = sortedPlayers[index];
-                const isInTeam = myTeam.some(p => p.id === player.id);
-                
-                return (
-                  <div style={style} className="px-1">
-                    <OptimizedPlayerCard 
-                      player={player}
-                      isInTeam={isInTeam}
-                      onSelect={() => handleAddPlayer(player.id)}
-                    />
-                  </div>
-                );
+              // Add window-based rendering for better performance
+              overscanCount={isMobile() ? 2 : 5}
+              // This ensures we only render a small window of items, improving performance
+              initialScrollOffset={0}
+              itemData={{
+                players: sortedPlayers,
+                team: myTeam,
+                currentPage,
+                playersPerPage,
+                onSelect: handleAddPlayer
               }}
+            >
+              {PlayerListRow}
             </FixedSizeList>
           )}
         </div>
