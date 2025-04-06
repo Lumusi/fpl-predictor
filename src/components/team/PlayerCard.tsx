@@ -19,7 +19,7 @@ interface PlayerWithTeamDetails {
   team: {
     name: string;
     short_name: string;
-  } | number;
+  } | number | undefined;
   team_short_name?: string;
   team_name?: string;
   total_points?: number;
@@ -71,8 +71,19 @@ export default function PlayerCard({
   // Check if player is actually a manager on component mount
   useEffect(() => {
     // Only perform check if we have a team object with a name
-    if (typeof player.team === 'object' && player.team.name) {
+    if (typeof player.team === 'object' && player.team && player.team.name) {
       const { isManager, optaId } = checkIfManager(player.web_name, player.team.name);
+      if (isManager) {
+        setPlayerWithManagerCheck({
+          ...player,
+          isManager: true,
+          optaId,
+          position: 'Manager' // Override position to show as Manager
+        });
+      }
+    } else if (player.team_name) {
+      // Try using team_name if available
+      const { isManager, optaId } = checkIfManager(player.web_name, player.team_name);
       if (isManager) {
         setPlayerWithManagerCheck({
           ...player,
@@ -95,7 +106,7 @@ export default function PlayerCard({
     // Use the person image finder that handles both players and managers
     localImageUrl = getPersonImageUrl(
       player.web_name, 
-      typeof player.team === 'object' ? player.team.name : '', 
+      typeof player.team === 'object' && player.team ? player.team.name : (player.team_name || ''), 
       player.code || '', 
       player.id
     );
@@ -265,7 +276,7 @@ export default function PlayerCard({
           <div>
             <h3 className="font-medium text-gray-900">{player.web_name}</h3>
             <div className="text-sm text-gray-600 flex items-center space-x-1">
-              <span>{typeof player.team === 'object' ? player.team.short_name : 'Unknown'}</span>
+              <span>{typeof player.team === 'object' && player.team ? player.team.short_name : (player.team_short_name || 'Unknown')}</span>
               <span>•</span>
               <span>{playerWithManagerCheck.isManager ? 'Manager' : player.position}</span>
               {player.price !== undefined && (
