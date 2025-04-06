@@ -8,7 +8,6 @@ import { Tab } from '@headlessui/react';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
 import { STATIC_TEAM_ID_MAP, getDirectTeamId, getSetPieceNotes, TeamSetPieceData } from '@/lib/services/fplApi';
 import Image from 'next/image';
-import scrapeSetPieceTakers from '@/scripts/scrapeSetPieceTakers';
 
 type PlayerStatus = {
   id: number;
