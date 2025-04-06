@@ -9,12 +9,12 @@ export const metadata: Metadata = {
   title: "FPL Predictor - Fantasy Premier League Points Prediction Tool",
   description: "Predict player performance in Fantasy Premier League (FPL) for upcoming gameweeks and optimize your team",
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: '/premier-league-logo.svg',
+    apple: '/premier-league-logo.svg',
   },
   // Add mobile-specific metadata
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
-  themeColor: "#1e40af", // Blue-700
+  themeColor: "#37003C", // Premier League purple color
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

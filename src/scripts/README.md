@@ -46,4 +46,30 @@ Player photos are saved to the `src/public/images/players/` directory with filen
 The photos are downloaded from the following URL format:
 ```
 https://resources.premierleague.com/premierleague/photos/players/250x250/p{PLAYER_ID}.png
-``` 
+```
+
+## Set Piece Takers Data
+
+The FPL website provides data about set piece takers (penalties, direct free kicks, corners) for each team. We have scripts to fetch this data:
+
+1. **fetchSetPieceData.js** - A simple Node.js script to fetch set piece data directly from the FPL API and save it to `set-piece-data.json`.
+
+   ```
+   node src/scripts/fetchSetPieceData.js
+   ```
+
+2. **scrapeSetPieceTakers.ts** - A more advanced script that attempts to scrape the FPL website for set piece takers data. Note that this may break if the website structure changes.
+
+   ```
+   npx ts-node src/scripts/scrapeSetPieceTakers.ts
+   ```
+
+3. **API Endpoint** - The app has an API endpoint to update the set piece data:
+
+   ```
+   GET /api/update-set-piece-data
+   ```
+
+   This endpoint is also automatically called when a user visits the Scout page, ensuring the data is kept up-to-date.
+
+The set piece data is stored in `set-piece-data.json` at the root of the project. 

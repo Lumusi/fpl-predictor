@@ -228,6 +228,37 @@ function calculatePlayerPrediction(
   teamFixtures: Fixture[],
   teams: Team[]
 ): PlayerPrediction {
+  // Check if player has any fixtures in this gameweek
+  if (teamFixtures.length === 0) {
+    // Player has no fixtures in this gameweek, set predicted points to 0
+    return {
+      id: player.id,
+      code: player.code,
+      web_name: player.web_name,
+      first_name: player.first_name,
+      second_name: player.second_name,
+      team: player.team,
+      team_short_name: playerTeam?.short_name,
+      team_name: playerTeam?.name,
+      predicted_points: 0, // No fixtures means no predicted points
+      form: player.form,
+      price: player.now_cost / 10,
+      points_per_game: player.points_per_game,
+      minutes: player.minutes,
+      total_points: player.total_points,
+      goals_scored: player.goals_scored,
+      assists: player.assists,
+      fixture_difficulty: PREDICTION_CONSTANTS.DEFAULT_FIXTURE_DIFFICULTY,
+      home_game: false,
+      element_type: player.element_type || 0,
+      position: POSITION_MAP[player.element_type as keyof typeof POSITION_MAP] || 'Unknown',
+      fixture_count: 0,
+      covered_gameweeks: [],
+      opponents: '',
+      opponentsPlain: 'No fixture'
+    };
+  }
+
   // Calculate formatted opponent information
   const opponentTeamsFormatted = teamFixtures.map(fixture => {
     const opponentId = fixture.team_h === player.team ? fixture.team_a : fixture.team_h;
@@ -362,6 +393,9 @@ export function predictPlayerPoints(
   const nextGameweekFixtures = fixtures.filter(fixture => fixture.event === gameweek);
   logger.log(`Found ${nextGameweekFixtures.length} fixtures for gameweek ${gameweek}`);
   
+  // Count players with no fixtures
+  let playersWithNoFixtures = 0;
+  
   const predictions: PlayerPrediction[] = players
     // Including all players, even those with 0 minutes
     .map(player => {
@@ -370,6 +404,11 @@ export function predictPlayerPoints(
       
       // Find ALL of player's team's fixtures for the next gameweek (to handle double gameweeks)
       const teamFixtures = getPlayerTeamFixtures(player, nextGameweekFixtures, gameweek);
+      
+      // Count players with no fixtures
+      if (teamFixtures.length === 0) {
+        playersWithNoFixtures++;
+      }
       
       // Calculate the player prediction
       return memoizedCalculatePlayerPrediction({
@@ -383,6 +422,7 @@ export function predictPlayerPoints(
   
   // Log prediction summary information (only in development)
   logger.log(`Generated ${predictions.length} player predictions`);
+  logger.log(`Players with no fixtures in gameweek ${gameweek}: ${playersWithNoFixtures}`);
   logger.debug(`Top 5 predicted players:`, predictions.slice(0, 5).map(p => ({
     name: p.web_name,
     points: p.predicted_points,
@@ -455,25 +495,13 @@ export function calculateTotalPredictedPoints(
 ): PlayerPrediction[] {
   logger.time('calculateTotalPredictedPoints');
   
-  // If no specific gameweeks provided, use all available gameweeks
+  // Use provided gameweeks, or all available gameweeks if none provided
   const targetGameweeks = gameweeks.length > 0 
     ? gameweeks 
     : Object.keys(futurePredictions).map(Number);
   
-  if (targetGameweeks.length === 0) return [];
-  
-  // Get all unique player IDs across all predictions
-  const allPlayerIds = new Set<number>();
-  targetGameweeks.forEach(gw => {
-    futurePredictions[gw]?.forEach(player => {
-      allPlayerIds.add(player.id);
-    });
-  });
-  
-  // Create a map to hold total points for each player
+  // Maps to track player totals and opponents
   const playerTotals = new Map<number, PlayerPrediction>();
-  
-  // Create map for opponent details by gameweek
   const playerOpponentsByGw = new Map<number, Map<number, { html: string, plain: string }>>();
   
   // Calculate total points for each player across selected gameweeks
@@ -481,6 +509,11 @@ export function calculateTotalPredictedPoints(
     const gwPredictions = futurePredictions[gw] || [];
     
     gwPredictions.forEach(player => {
+      // Skip players with no fixtures in this gameweek (they'll have 0 predicted points)
+      if (player.fixture_count === 0) {
+        return;
+      }
+      
       // Track opponents for each gameweek
       if (!playerOpponentsByGw.has(player.id)) {
         playerOpponentsByGw.set(player.id, new Map<number, { html: string, plain: string }>());
@@ -491,7 +524,7 @@ export function calculateTotalPredictedPoints(
         // Store both HTML and plain versions
         playerOpponents.set(gw, { 
           html: player.opponents,
-          plain: player.opponents
+          plain: player.opponentsPlain || player.opponents
         });
       }
       

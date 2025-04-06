@@ -1,0 +1,122 @@
+[
+  {
+    "id": "man52174",
+    "name": "Mikel Arteta",
+    "team": "Arsenal",
+    "imageUrl": "/images/managers/man52174.png"
+  },
+  {
+    "id": "man40342",
+    "name": "Unai Emery",
+    "team": "Aston Villa",
+    "imageUrl": "/images/managers/man40342.png"
+  },
+  {
+    "id": "man37974",
+    "name": "Andoni Iraola",
+    "team": "Bournemouth",
+    "imageUrl": "/images/managers/man37974.png"
+  },
+  {
+    "id": "man50525",
+    "name": "Thomas Frank",
+    "team": "Brentford",
+    "imageUrl": "/images/managers/man50525.png"
+  },
+  {
+    "id": "man40383",
+    "name": "Roberto De Zerbi",
+    "team": "Brighton",
+    "imageUrl": "/images/managers/man40383.png"
+  },
+  {
+    "id": "man279",
+    "name": "Mauricio Pochettino",
+    "team": "Chelsea",
+    "imageUrl": "/images/managers/man279.png"
+  },
+  {
+    "id": "man40836",
+    "name": "Oliver Glasner",
+    "team": "Crystal Palace",
+    "imageUrl": "/images/managers/man40836.png"
+  },
+  {
+    "id": "man1033",
+    "name": "Sean Dyche",
+    "team": "Everton",
+    "imageUrl": "/images/managers/man1033.png"
+  },
+  {
+    "id": "man40387",
+    "name": "Marco Silva",
+    "team": "Fulham",
+    "imageUrl": "/images/managers/man40387.png"
+  },
+  {
+    "id": "man51539",
+    "name": "Kieran McKenna",
+    "team": "Ipswich",
+    "imageUrl": "/images/managers/man51539.png"
+  },
+  {
+    "id": "man51806",
+    "name": "Enzo Maresca",
+    "team": "Leicester",
+    "imageUrl": "/images/managers/man51806.png"
+  },
+  {
+    "id": "man134",
+    "name": "Jürgen Klopp",
+    "team": "Liverpool",
+    "imageUrl": "/images/managers/man134.png"
+  },
+  {
+    "id": "man37691",
+    "name": "Pep Guardiola",
+    "team": "Man City",
+    "imageUrl": "/images/managers/man37691.png"
+  },
+  {
+    "id": "man40805",
+    "name": "Erik ten Hag",
+    "team": "Man Utd",
+    "imageUrl": "/images/managers/man40805.png"
+  },
+  {
+    "id": "man1073",
+    "name": "Eddie Howe",
+    "team": "Newcastle",
+    "imageUrl": "/images/managers/man1073.png"
+  },
+  {
+    "id": "man40834",
+    "name": "Nuno Espírito Santo",
+    "team": "Nottingham Forest",
+    "imageUrl": "/images/managers/man40834.png"
+  },
+  {
+    "id": "man51811",
+    "name": "Russell Martin",
+    "team": "Southampton",
+    "imageUrl": "/images/managers/man51811.png"
+  },
+  {
+    "id": "man40349",
+    "name": "Ange Postecoglou",
+    "team": "Tottenham",
+    "imageUrl": "/images/managers/man40349.png"
+  },
+  {
+    "id": "man51810",
+    "name": "Julen Lopetegui",
+    "team": "West Ham",
+    "imageUrl": "/images/managers/man51810.png"
+  },
+  {
+    "id": "man40333",
+    "name": "Gary O'Neil",
+    "team": "Wolves",
+    "imageUrl": "/images/managers/man40333.png"
+  }
+]

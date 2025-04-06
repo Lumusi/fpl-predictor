@@ -77,6 +77,52 @@ export interface Fixture {
   team_h_score?: number | null;
   team_a_score?: number | null;
   finished_provisional?: boolean;
+  broadcasters?: BroadcastingDetails[]; 
+  code?: number; // FPL fixture code, used for matching with broadcasting data
+}
+
+export interface BroadcastingDetails {
+  name: string;
+  abbreviation: string;
+  country?: string;
+  tvShows?: {
+    channel: string;
+    territories: string[];
+    showTime: string;
+    timeZone: string;
+    abbreviation: string;
+  }[];
+  url?: string;
+}
+
+export interface FixtureBroadcasting {
+  fixture: {
+    id: number;
+    gameweek: {
+      id: number;
+      gameweek: number;
+    };
+    altIds?: {
+      opta?: string;
+      [key: string]: any;
+    };
+    kickoff?: {
+      millis: number;
+      label: string;
+      gmtOffset: number;
+    };
+  };
+  broadcasters: BroadcastingDetails[];
+}
+
+export interface BroadcastingResponse {
+  content: FixtureBroadcasting[];
+  pageInfo: {
+    page: number;
+    numPages: number;
+    pageSize: number;
+    numEntries: number;
+  };
 }
 
 // Team data context - used to store FPL team information across the app
@@ -94,7 +140,7 @@ let teamDataContext: TeamDataContext = {
 };
 
 // Define a static mapping for team IDs based on the downloaded images
-const STATIC_TEAM_ID_MAP: Record<string, number> = {
+export const STATIC_TEAM_ID_MAP: Record<string, number> = {
   // Team short names to IDs mapping (2023-2024 season)
   // Exact mapping from downloadTeamImagesSimple.ts
   'ars': 3,
@@ -548,4 +594,337 @@ export async function getFixturesByGameweek(gameweek: number): Promise<Fixture[]
     console.error(`Error fetching fixtures for gameweek ${gameweek}:`, error);
     throw error;
   }
-} 
+}
+
+// Broadcasting data types
+export interface BroadcastingDetails {
+  name: string;
+  abbreviation: string;
+  country?: string;
+  tvShows?: {
+    channel: string;
+    territories: string[];
+    showTime: string;
+    timeZone: string;
+    abbreviation: string;
+  }[];
+  url?: string;
+}
+
+export interface FixtureBroadcasting {
+  fixture: {
+    id: number;
+    gameweek: {
+      id: number;
+      gameweek: number;
+    };
+    altIds?: {
+      opta?: string;
+      [key: string]: any;
+    };
+    kickoff?: {
+      millis: number;
+      label: string;
+      gmtOffset: number;
+    };
+  };
+  broadcasters: BroadcastingDetails[];
+}
+
+export interface BroadcastingResponse {
+  content: FixtureBroadcasting[];
+  pageInfo: {
+    page: number;
+    numPages: number;
+    pageSize: number;
+    numEntries: number;
+  };
+}
+
+// Update Fixture interface to include broadcasting details
+export interface Fixture {
+  id: number;
+  event: number | null;
+  team_h: number;
+  team_a: number;
+  team_h_difficulty: number;
+  team_a_difficulty: number;
+  kickoff_time?: string;
+  finished?: boolean;
+  started?: boolean;
+  team_h_score?: number | null;
+  team_a_score?: number | null;
+  finished_provisional?: boolean;
+  broadcasters?: BroadcastingDetails[]; // Add broadcasting details
+  code?: number; // FPL fixture code, used for matching with broadcasting data
+}
+
+// Get broadcasting details for fixtures within a date range
+export async function getBroadcastingDetails(startDate: string, endDate: string): Promise<FixtureBroadcasting[]> {
+  try {
+    // Use the exact URL format from the user's example
+    // Example URL: https://footballapi.pulselive.com/football/broadcasting-schedule/fixtures?comps=1&pageSize=100&page=0&altIds=true&startDate=2025-04-05&endDate=2025-04-08
+    
+    // Ensure we're using the current season's data by using the gameweek endpoint instead of fixtures with date range
+    // This is because the fixtures endpoint with date parameters seems to return historical data
+    const endpoint = `broadcasting-schedule/fixtures?comps=1&pageSize=100&page=0&altIds=true&startDate=${startDate}&endDate=${endDate}`;
+    console.log(`Requesting broadcasting details with endpoint: ${endpoint}`);
+    
+    // Make the request through our proxy
+    const response = await axiosWithCredentials.get(`${PROXY_API_URL}?endpoint=${encodeURIComponent(endpoint)}`);
+    console.log('Broadcasting response status:', response.status);
+    
+    // Log the raw response data to debug
+    console.log('Raw broadcasting response data:', JSON.stringify(response.data).substring(0, 500) + '...');
+    
+    if (response.data && response.data.content && Array.isArray(response.data.content)) {
+      console.log(`Found ${response.data.content.length} broadcasting items`);
+      
+      // Log the first item to see its structure and date
+      if (response.data.content.length > 0) {
+        const firstItem = response.data.content[0];
+        console.log('First broadcasting item:', JSON.stringify(firstItem));
+        
+        if (firstItem.fixture && firstItem.fixture.kickoff && firstItem.fixture.kickoff.millis) {
+          const fixtureDate = new Date(firstItem.fixture.kickoff.millis);
+          console.log('First fixture date:', fixtureDate.toISOString());
+        }
+      }
+      
+      // The current season is 2024/2025, so we want fixtures from 2024-07-01 onwards
+      const currentSeasonStart = new Date('2024-07-01').getTime();
+      const currentDate = new Date().getTime();
+      
+      // Parse the provided date strings to use for filtering
+      const requestedStartDate = new Date(startDate).getTime();
+      const requestedEndDate = new Date(endDate).getTime();
+      
+      console.log(`Filtering fixtures between ${new Date(requestedStartDate).toISOString()} and ${new Date(requestedEndDate).toISOString()}`);
+      
+      // More aggressive filtering to ensure we only get fixtures in the requested date range
+      const filteredContent = response.data.content.filter((item: any) => {
+        if (item.fixture && item.fixture.kickoff && item.fixture.kickoff.millis) {
+          const fixtureDate = new Date(item.fixture.kickoff.millis);
+          const fixtureTime = fixtureDate.getTime();
+          
+          // Check if this fixture is within our requested date range AND in the current season
+          const isInRequestedDateRange = fixtureTime >= requestedStartDate && fixtureTime <= requestedEndDate;
+          const isCurrentSeason = fixtureTime >= currentSeasonStart && fixtureTime <= currentDate + (365 * 24 * 60 * 60 * 1000); // Current season + 1 year max
+          
+          // Log any fixtures that are being filtered out
+          if (!isInRequestedDateRange || !isCurrentSeason) {
+            console.log(`Filtering out fixture on ${fixtureDate.toISOString()} - in date range: ${isInRequestedDateRange}, current season: ${isCurrentSeason}`);
+          }
+          
+          return isInRequestedDateRange && isCurrentSeason;
+        }
+        return false;
+      });
+      
+      console.log(`After filtering, found ${filteredContent.length} broadcasting items in the requested date range`);
+      
+      // If we didn't find any fixtures in the requested date range, log a warning
+      if (filteredContent.length === 0 && response.data.content.length > 0) {
+        console.warn('WARNING: Found broadcasting data but none in the requested date range. API may be returning historical data.');
+        
+        // Log the date range of the returned fixtures to help debug
+        const dates = response.data.content
+          .filter((item: any) => item.fixture && item.fixture.kickoff && item.fixture.kickoff.millis)
+          .map((item: any) => new Date(item.fixture.kickoff.millis));
+        
+        if (dates.length > 0) {
+          const minDate = new Date(Math.min(...dates.map((d: Date) => d.getTime())));
+          const maxDate = new Date(Math.max(...dates.map((d: Date) => d.getTime())));
+          console.warn(`API returned fixtures from ${minDate.toISOString()} to ${maxDate.toISOString()}`);
+        }
+      }
+      
+      return filteredContent;
+    }
+    
+    console.log('No broadcasting content found in response');
+    return [];
+  } catch (error: any) {
+    console.error('Error fetching broadcasting details:', error.message);
+    return [];
+  }
+}
+
+// Enhanced function to get fixtures by gameweek with broadcasting details
+export async function getFixturesByGameweekWithBroadcasting(gameweek: number): Promise<Fixture[]> {
+  try {
+    // Get fixtures for the gameweek
+    const fixtures = await getFixturesByGameweek(gameweek);
+    
+    // If no fixtures or no kickoff times, return fixtures as is
+    if (!fixtures.length || !fixtures.some(f => f.kickoff_time)) {
+      return fixtures;
+    }
+    
+    // Find the date range for the fixtures in this gameweek
+    const fixturesWithDates = fixtures.filter(f => f.kickoff_time);
+    
+    if (fixturesWithDates.length === 0) {
+      console.log(`No fixtures with dates found for gameweek ${gameweek}`);
+      return fixtures;
+    }
+    
+    // Find earliest and latest dates
+    const dates = fixturesWithDates.map(f => new Date(f.kickoff_time!));
+    const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
+    
+    // Add one day to the latest date to ensure we capture all fixtures
+    latestDate.setDate(latestDate.getDate() + 1);
+    
+    // Format dates as YYYY-MM-DD
+    const formattedStartDate = earliestDate.toISOString().split('T')[0];
+    const formattedEndDate = latestDate.toISOString().split('T')[0];
+    
+    console.log(`Date range for gameweek ${gameweek}: ${formattedStartDate} to ${formattedEndDate}`);
+    
+    // Get broadcasting details for this date range
+    const broadcastingDetails = await getBroadcastingDetails(formattedStartDate, formattedEndDate);
+    
+    // Create a map of fixture ID to broadcasters
+    const broadcastingMap: Record<number, BroadcastingDetails[]> = {};
+    
+    // Check if we have the expected data structure
+    if (broadcastingDetails && Array.isArray(broadcastingDetails)) {
+      console.log(`Found ${broadcastingDetails.length} broadcasting details items`);
+      
+      broadcastingDetails.forEach(item => {
+        // Log the entire item to see its structure
+        console.log('Broadcasting item:', JSON.stringify(item).substring(0, 200) + '...');
+        
+        // Check if the item has the expected structure
+        if (item && item.fixture && item.fixture.id) {
+          // Get the fixture ID
+          const fixtureId = item.fixture.id;
+          
+          // Check if the item has broadcasters
+          if (item.broadcasters && Array.isArray(item.broadcasters) && item.broadcasters.length > 0) {
+            // Map the broadcasters to the fixture ID
+            broadcastingMap[fixtureId] = item.broadcasters;
+            console.log(`Mapped ${item.broadcasters.length} broadcasters for fixture ID ${fixtureId}:`, 
+              JSON.stringify(item.broadcasters.map(b => b.abbreviation)));
+          } else {
+            console.log(`No broadcasters found for fixture ID ${fixtureId}`);
+          }
+        } else {
+          console.warn('Broadcasting item missing fixture ID:', item);
+        }
+      });
+    } else {
+      console.warn('Broadcasting details is not an array or is empty:', broadcastingDetails);
+    }
+    
+    // Merge broadcasting details with fixtures
+    const fixturesWithBroadcasters = fixtures.map(fixture => {
+      // Debug the fixture data
+      console.log(`Processing fixture:`, JSON.stringify({
+        id: fixture.id,
+        code: fixture.code,
+        teams: `${fixture.team_h} vs ${fixture.team_a}`
+      }));
+      
+      // Check if we have broadcasting data for this fixture
+      // First try matching by fixture.id
+      let broadcasters = broadcastingMap[fixture.id] || [];
+      
+      // If no broadcasters found and we have a code, try matching by code
+      if (broadcasters.length === 0 && fixture.code) {
+        // The API uses "g" prefix for the code in altIds.opta
+        const optaId = `g${fixture.code}`;
+        
+        // Find broadcasting item with matching altId
+        const matchingBroadcastItem = broadcastingDetails.find(item => 
+          item.fixture && 
+          item.fixture.altIds && 
+          item.fixture.altIds.opta === optaId
+        );
+        
+        if (matchingBroadcastItem) {
+          console.log(`Found broadcasting by code match for fixture ${fixture.id} with code ${fixture.code}`);
+          broadcasters = matchingBroadcastItem.broadcasters || [];
+        }
+      }
+      
+      const fixtureWithBroadcasters = {
+        ...fixture,
+        broadcasters: broadcasters
+      };
+      
+      // Log if we found broadcasters for this fixture
+      if (broadcasters.length > 0) {
+        console.log(`Added ${broadcasters.length} broadcasters to fixture ${fixture.id} with code ${fixture.code}`);
+      }
+      
+      return fixtureWithBroadcasters;
+    });
+    
+    // Log the final fixtures with broadcasters
+    console.log(`Returning ${fixturesWithBroadcasters.length} fixtures with broadcasting details`);
+    const fixturesWithBroadcastersCount = fixturesWithBroadcasters.filter(f => 
+      f.broadcasters && f.broadcasters.length > 0).length;
+    console.log(`${fixturesWithBroadcastersCount} fixtures have broadcasting details`);
+    
+    return fixturesWithBroadcasters;
+  } catch (error) {
+    console.error(`Error fetching fixtures with broadcasting for gameweek ${gameweek}:`, error);
+    return [];
+  }
+}
+
+// SetPiece data types
+export interface TeamSetPieceNote {
+  info_message: string;
+  external_link: boolean;
+  source_link: string;
+}
+
+export interface TeamSetPieceData {
+  id: number;
+  notes: TeamSetPieceNote[];
+}
+
+export interface SetPieceData {
+  last_updated: string;
+  teams: TeamSetPieceData[];
+}
+
+export async function getSetPieceNotes(): Promise<SetPieceData> {
+  try {
+    const response = await axiosWithCredentials.get(`${PROXY_API_URL}?endpoint=team/set-piece-notes/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching set piece notes:', error);
+    throw error;
+  }
+}
+
+// Dream Team data types
+export interface DreamTeamPlayer {
+  element: number;  // Player ID
+  points: number;
+  position: number; // Position in the dream team (1-11)
+  name?: string;    // Added after fetching player details
+  team?: Team;      // Added after fetching player details
+  element_type?: number; // Position type (1=GKP, 2=DEF, 3=MID, 4=FWD)
+  code?: number;    // Player code for images
+}
+
+export interface DreamTeam {
+  name: string;
+  team: DreamTeamPlayer[];
+}
+
+export async function getDreamTeam(gameweek: number): Promise<DreamTeam> {
+  try {
+    const response = await axiosWithCredentials.get(`${PROXY_API_URL}?endpoint=dream-team/${gameweek}/`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching dream team for gameweek ${gameweek}:`, error);
+    throw error;
+  }
+}

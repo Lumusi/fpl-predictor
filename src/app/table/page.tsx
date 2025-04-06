@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getLeagueTable, getTeamCrestUrl, getFixtures, Team, Fixture, getDirectTeamId } from '@/lib/services/fplApi';
+import { getLeagueTable, getFixtures, Team, Fixture, getDirectTeamId } from '@/lib/services/fplApi';
 import { useFplData } from '@/lib/hooks/useFplData';
 import Header from '@/components/Header';
 import Image from 'next/image';
+import TeamDetailsModal from '@/components/team/TeamDetailsModal';
 
 // Helper function to determine form display
 const getFormIcon = (result: string) => {
@@ -34,71 +35,30 @@ const getPositionStyle = (position: number) => {
   return '';
 };
 
-// Helper function to get team crest with fallback
-const getTeamCrestWithFallback = (team: Team) => {
-  try {
-    // Special case for Ipswich (IPS)
-    if (team.short_name === 'IPS' || team.short_name?.toLowerCase() === 'ips') {
-      return `/images/teams/team_40_crest.png`;
-    }
-    
-    // First try using the short_name for correct mapping (lowercase it to be safe)
-    if (team.short_name) {
-      try {
-        return getTeamCrestUrl(team.short_name.toLowerCase());
-      } catch (e) {
-        // If this specific method fails, continue to next fallback
-        console.log(`Fallback for ${team.short_name}: initial getTeamCrestUrl failed`);
-      }
-    }
-    
-    // If that fails, try using the full name
-    if (team.name) {
-      try {
-        return getTeamCrestUrl(team.name.toLowerCase());
-      } catch (e) {
-        // If this specific method fails, continue to next fallback
-        console.log(`Fallback for ${team.name}: name-based getTeamCrestUrl failed`);
-      }
-    }
-    
-    // Try using getDirectTeamId as fallback
-    let directId = null;
-    if (team.short_name) {
-      directId = getDirectTeamId(team.short_name.toLowerCase());
-    } 
-    
-    if (!directId && team.name) {
-      directId = getDirectTeamId(team.name.toLowerCase());
-    }
-    
-    if (directId) {
-      return `/images/teams/team_${directId}_crest.png`;
-    }
-    
-    // Manual mapping for known problematic teams
-    const manualMap: Record<string, number> = {
-      'IPS': 40,
-      'ips': 40,
-      'ipw': 40,
-      'ipswich': 40
-    };
-    
-    if (team.short_name && manualMap[team.short_name]) {
-      return `/images/teams/team_${manualMap[team.short_name]}_crest.png`;
-    }
-    
-    // Last resort - use the direct ID
-    return `/images/teams/team_${team.id}_crest.png`;
-  } catch (error) {
-    console.error('Error getting team crest:', error);
-    // Absolute fallback - placeholder image
-    return '/images/placeholder-crest.svg';
-  }
-};
-
 // Define form result type to include '-'
 type FormResult = 'W' | 'L' | 'D' | '-';
+
+// Helper function to get correct team ID for crest image
+const getTeamImageId = (team: Team): number => {
+  // Try to get ID from short_name using the getDirectTeamId function
+  if (team.short_name) {
+    const mappedId = getDirectTeamId(team.short_name.toLowerCase());
+    if (mappedId) {
+      return mappedId;
+    }
+  }
+  
+  // Try to get ID from full name
+  if (team.name) {
+    const mappedId = getDirectTeamId(team.name.toLowerCase());
+    if (mappedId) {
+      return mappedId;
+    }
+  }
+  
+  // Fallback to the team's own ID
+  return team.id;
+};
 
 export default function LeagueTablePage() {
   const { currentGameweek: fplCurrentGameweek } = useFplData();
@@ -106,6 +66,8 @@ export default function LeagueTablePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<number, FormResult[]>>({});
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -236,14 +198,19 @@ export default function LeagueTablePage() {
                     className={`
                       border-b border-gray-700 hover:bg-gray-600/40
                       ${getPositionStyle(team.position!)}
+                      cursor-pointer
                     `}
+                    onClick={() => {
+                      setSelectedTeam(team);
+                      setIsModalOpen(true);
+                    }}
                   >
                     <td className="py-2 px-2 text-center font-bold">{team.position}</td>
                     <td className="py-2 px-2">
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 relative">
                           <Image 
-                            src={getTeamCrestWithFallback(team)} 
+                            src={`/images/teams/team_${getTeamImageId(team)}_crest.png`} 
                             alt={team.name}
                             width={24}
                             height={24}
@@ -285,6 +252,15 @@ export default function LeagueTablePage() {
               </tbody>
             </table>
           </div>
+        )}
+        
+        {/* Team details modal */}
+        {selectedTeam && (
+          <TeamDetailsModal
+            team={selectedTeam}
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+          />
         )}
         
         <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">

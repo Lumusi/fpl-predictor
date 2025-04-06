@@ -2,13 +2,20 @@ import React, { useState, memo, useEffect, useRef } from 'react';
 import { XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import { TeamPlayer } from '@/lib/utils/teamBuilder';
 import { isMobile } from '@/lib/utils/deviceUtils';
-import { getOptimizedImageUrl, getOptimizedImageProps } from '@/lib/utils/imageOptimization';
+import { checkIfManager } from '@/lib/utils/playerImages';
+import { getManagerByTeam } from '@/lib/utils/managerImages';
+import Image from 'next/image';
 
 interface OptimizedPlayerCardProps {
   player: TeamPlayer;
   onSelect: () => void;
   isInTeam: boolean;
   className?: string;
+}
+
+interface PlayerWithManagerInfo extends TeamPlayer {
+  isManager?: boolean;
+  optaId?: string | undefined;
 }
 
 // Player row component for the virtualized list
@@ -22,6 +29,7 @@ const OptimizedPlayerCard = memo(({
   const [imageError, setImageError] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [playerWithManagerCheck, setPlayerWithManagerCheck] = useState<PlayerWithManagerInfo>(player);
   
   // Even smaller images on mobile for better performance
   const imageSize = isMobile() ? 30 : 60;
@@ -47,20 +55,123 @@ const OptimizedPlayerCard = memo(({
     };
   }, []);
   
-  const playerImageUrl = player?.code 
-    ? `/images/players/${player.code}.png` 
-    : `/images/placeholder-player.svg`;
+  // Check if player is actually a manager on component mount - using same approach as PlayerPredictionTable
+  useEffect(() => {
+    const newManagerInfo: { isManager: boolean; optaId: string | undefined } = { isManager: false, optaId: undefined };
+    
+    // Method 1: Check if the player's code starts with 'man' (direct Opta ID)
+    const playerCode = player.code ? player.code.toString() : '';
+    if (playerCode && playerCode.startsWith('man')) {
+      newManagerInfo.isManager = true;
+      newManagerInfo.optaId = playerCode;
+    }
+    // Method 2: Check if the player's element_type is set to a manager code (5)
+    else if (player.element_type === 5) {
+      // Try to find the team and corresponding manager
+      let teamName = player.team_name;
+      if (!teamName && player.team_short_name) {
+        const teamNameMap: Record<string, string> = {
+          'ARS': 'Arsenal',
+          'AVL': 'Aston Villa',
+          'BOU': 'Bournemouth',
+          'BRE': 'Brentford',
+          'BHA': 'Brighton',
+          'CHE': 'Chelsea',
+          'CRY': 'Crystal Palace',
+          'EVE': 'Everton',
+          'FUL': 'Fulham',
+          'IPW': 'Ipswich',
+          'LEI': 'Leicester',
+          'LIV': 'Liverpool',
+          'MCI': 'Man City',
+          'MUN': 'Man Utd',
+          'NEW': 'Newcastle',
+          'NFO': 'Nott\'m Forest',
+          'SOU': 'Southampton',
+          'TOT': 'Spurs',
+          'WHU': 'West Ham',
+          'WOL': 'Wolves'
+        };
+        teamName = teamNameMap[player.team_short_name];
+      }
+      
+      if (teamName) {
+        const manager = getManagerByTeam(teamName);
+        if (manager) {
+          newManagerInfo.isManager = true;
+          newManagerInfo.optaId = manager.id;
+        }
+      }
+    }
+    // Method 3: Name-based matching
+    else if (player.web_name && (player.team_name || player.team_short_name)) {
+      // Get proper team name for manager lookup
+      let teamName = player.team_name;
+      
+      // If we don't have team_name but have team_short_name, map it to full name
+      if (!teamName && player.team_short_name) {
+        // Map short names to full names
+        const teamNameMap: Record<string, string> = {
+          'ARS': 'Arsenal',
+          'AVL': 'Aston Villa',
+          'BOU': 'Bournemouth',
+          'BRE': 'Brentford',
+          'BHA': 'Brighton',
+          'CHE': 'Chelsea',
+          'CRY': 'Crystal Palace',
+          'EVE': 'Everton',
+          'FUL': 'Fulham',
+          'IPW': 'Ipswich',
+          'LEI': 'Leicester',
+          'LIV': 'Liverpool',
+          'MCI': 'Man City',
+          'MUN': 'Man Utd',
+          'NEW': 'Newcastle',
+          'NFO': 'Nott\'m Forest',
+          'SOU': 'Southampton',
+          'TOT': 'Spurs',
+          'WHU': 'West Ham',
+          'WOL': 'Wolves'
+        };
+        
+        teamName = teamNameMap[player.team_short_name];
+      }
+      
+      if (teamName) {
+        // Get manager data for this team
+        const manager = getManagerByTeam(teamName);
+        
+        // If we found a manager and the player's name includes the manager's name
+        if (manager && player.web_name.toLowerCase().includes(manager.name.toLowerCase())) {
+          newManagerInfo.isManager = true;
+          newManagerInfo.optaId = manager.id;
+        }
+      }
+    }
+    
+    // Update player with manager info if found
+    if (newManagerInfo.isManager && newManagerInfo.optaId) {
+      setPlayerWithManagerCheck({
+        ...player,
+        isManager: true,
+        optaId: newManagerInfo.optaId,
+        position: 'Manager' // Override position to show as Manager
+      });
+    }
+  }, [player]);
   
-  // Get optimized image properties with correct sizing for device
-  const imageProps = getOptimizedImageProps(playerImageUrl, {
-    alt: player.web_name,
-    width: imageSize,
-    height: imageSize,
-    loading: 'lazy',
-    // Further reduce quality on mobile for better performance
-    quality: isMobile() ? 40 : 70,
-    format: 'webp'
-  });
+  // Determine image URL based on whether this is a manager or player - using only local images
+  let playerImageUrl;
+  
+  if (playerWithManagerCheck.isManager && playerWithManagerCheck.optaId) {
+    // For managers, use the local manager image URL
+    playerImageUrl = `/images/managers/${playerWithManagerCheck.optaId}.png`;
+  } else {
+    // For players, use the local player image URL
+    const playerCode = player.code?.toString() || '';
+    const playerId = player.id.toString();
+    playerImageUrl = `/images/players/${playerCode || playerId}.png`;
+  }
   
   // Use placeholder until image is loaded
   const placeholderUrl = '/placeholder-player.svg';
@@ -89,22 +200,26 @@ const OptimizedPlayerCard = memo(({
         
         {/* Only load image when visible in viewport */}
         {isVisible && (
-          <img
-            {...imageProps}
-            className={`object-cover transition-opacity duration-300 ${
-              imageLoaded && !imageError ? 'opacity-100' : 'opacity-0'
-            }`}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => {
-              setImageError(true);
-              setImageLoaded(true); // Still mark as loaded to remove placeholder
-            }}
-            width={imageSize}
-            height={imageSize}
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={playerImageUrl}
+              alt={player.web_name || 'Player'}
+              className={`transition-opacity duration-300 ${imageLoaded && !imageError ? 'opacity-100' : 'opacity-0'}`}
+              onLoadingComplete={() => setImageLoaded(true)}
+              onError={(e) => {
+                console.log(`Failed to load image: ${playerImageUrl}`);
+                setImageError(true);
+                setImageLoaded(true); // Still mark as loaded to remove placeholder
+              }}
+              fill
+              sizes={`${imageSize}px`}
+              style={{ objectFit: 'contain' }}
+              unoptimized={true} // This is key - bypass Next.js image optimization
+            />
+          </div>
         )}
         
-        {/* Fallback for error state */}
+        {/* Fallback if image fails to load */}
         {imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
             <span className="text-xs text-gray-500 dark:text-gray-400">No image</span>
@@ -116,6 +231,7 @@ const OptimizedPlayerCard = memo(({
         <div className="flex items-center space-x-1">
           <div 
             className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              playerWithManagerCheck.isManager ? 'bg-purple-500' :
               player.position === 'GKP' ? 'bg-yellow-500' :
               player.position === 'DEF' ? 'bg-blue-500' :
               player.position === 'MID' ? 'bg-green-500' :
@@ -125,7 +241,7 @@ const OptimizedPlayerCard = memo(({
           <div className="font-medium truncate">{player.web_name}</div>
         </div>
         <div className="text-gray-500 dark:text-gray-400 text-[9px] ml-2.5">
-          {player.team_short_name} • {player.position}
+          {player.team_short_name} • {playerWithManagerCheck.isManager ? 'Manager' : player.position}
         </div>
       </div>
       

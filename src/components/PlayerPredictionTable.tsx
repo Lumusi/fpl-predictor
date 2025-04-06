@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { PlayerPrediction, getDifficultyColorClass } from '@/lib/utils/predictions';
 import PlayerStatsModal from './PlayerStatsModal';
 import { findPlayerImage, getPremierLeaguePlayerImageUrl } from '@/lib/utils/playerImages';
+import { getManagerByTeam, getManagerImageUrl } from '@/lib/utils/managerImages';
 
 interface PlayerPredictionTableProps {
   predictions: PlayerPrediction[];
@@ -26,13 +27,14 @@ export default function PlayerPredictionTable({
   const [imagesLoaded, setImagesLoaded] = useState<Record<number, boolean>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const playersPerPage = 100;
+  const [managersMap, setManagersMap] = useState<Record<number, { isManager: boolean; optaId?: string }>>({});
   
   // Function to get color based on fixture difficulty - using the imported function
   const getDifficultyColor = (difficulty: number) => {
     return getDifficultyColorClass(difficulty) + ' px-2 py-0.5 rounded';
   };
   
-  // Handle local image error - try Premier League API fallback
+  // Handle local image error - use placeholder
   const handleImageError = (playerId: number) => {
     setImageErrors(prev => ({
       ...prev,
@@ -48,14 +50,130 @@ export default function PlayerPredictionTable({
     }));
   };
   
+  // Check for managers in the predictions data when component mounts or predictions change
+  useEffect(() => {
+    const newManagersMap: Record<number, { isManager: boolean; optaId?: string }> = {};
+    
+    // Process each player to identify managers
+    predictions.forEach(player => {
+      // Method 1: Check if the player's code starts with 'man' (direct Opta ID)
+      const playerCode = player.code ? player.code.toString() : '';
+      if (playerCode && playerCode.startsWith('man')) {
+        console.log(`Identified manager by Opta ID: ${player.web_name} with optaId ${playerCode}`);
+        newManagersMap[player.id] = { isManager: true, optaId: playerCode };
+        return;
+      }
+      
+      // Method 2: Check if the player's element_type is set to a manager code
+      if (player.element_type === 5) { // Assuming 5 might be used for managers
+        console.log(`Identified manager by element_type: ${player.web_name}`);
+        
+        // Try to find the team and corresponding manager
+        let teamName = player.team_name;
+        if (!teamName && player.team_short_name) {
+          const teamNameMap: Record<string, string> = {
+            'ARS': 'Arsenal',
+            'AVL': 'Aston Villa',
+            'BOU': 'Bournemouth',
+            'BRE': 'Brentford',
+            'BHA': 'Brighton',
+            'CHE': 'Chelsea',
+            'CRY': 'Crystal Palace',
+            'EVE': 'Everton',
+            'FUL': 'Fulham',
+            'IPW': 'Ipswich',
+            'LEI': 'Leicester',
+            'LIV': 'Liverpool',
+            'MCI': 'Man City',
+            'MUN': 'Man Utd',
+            'NEW': 'Newcastle',
+            'NFO': 'Nott\'m Forest',
+            'SOU': 'Southampton',
+            'TOT': 'Spurs',
+            'WHU': 'West Ham',
+            'WOL': 'Wolves'
+          };
+          teamName = teamNameMap[player.team_short_name];
+        }
+        
+        if (teamName) {
+          const manager = getManagerByTeam(teamName);
+          if (manager) {
+            newManagersMap[player.id] = { isManager: true, optaId: manager.id };
+          }
+        }
+        return;
+      }
+      
+      // Skip players without name or team information for name-based matching
+      if (!player.web_name || (!player.team_name && !player.team_short_name)) {
+        return;
+      }
+      
+      // Get proper team name for manager lookup
+      let teamName = player.team_name;
+      
+      // If we don't have team_name but have team_short_name, map it to full name
+      if (!teamName && player.team_short_name) {
+        // Map short names to full names (exact mapping from managers.json)
+        const teamNameMap: Record<string, string> = {
+          'ARS': 'Arsenal',
+          'AVL': 'Aston Villa',
+          'BOU': 'Bournemouth',
+          'BRE': 'Brentford',
+          'BHA': 'Brighton',
+          'CHE': 'Chelsea',
+          'CRY': 'Crystal Palace',
+          'EVE': 'Everton',
+          'FUL': 'Fulham',
+          'IPW': 'Ipswich',
+          'LEI': 'Leicester',
+          'LIV': 'Liverpool',
+          'MCI': 'Man City',
+          'MUN': 'Man Utd',
+          'NEW': 'Newcastle',
+          'NFO': 'Nott\'m Forest',
+          'SOU': 'Southampton',
+          'TOT': 'Spurs',
+          'WHU': 'West Ham',
+          'WOL': 'Wolves'
+        };
+        
+        teamName = teamNameMap[player.team_short_name];
+      }
+      
+      // Method 3: Only proceed if we have a valid team name for name-based matching
+      if (teamName) {
+        // Get manager data for this team
+        const manager = getManagerByTeam(teamName);
+        
+        // If we found a manager and the player's name includes the manager's name
+        if (manager && player.web_name.toLowerCase().includes(manager.name.toLowerCase())) {
+          console.log(`Identified manager by name: ${player.web_name} of ${teamName} with optaId ${manager.id}`);
+          newManagersMap[player.id] = { isManager: true, optaId: manager.id };
+        }
+      }
+    });
+    
+    // Update the managers map state
+    setManagersMap(newManagersMap);
+  }, [predictions]);
+
   // Function to get player image URL
   const getPlayerImageUrl = (player: PlayerPrediction) => {
-    const playerImageId = player.code || player.id;
+    // Check if this is a manager - this takes highest priority
+    if (managersMap[player.id]?.isManager && managersMap[player.id]?.optaId) {
+      // For managers, use the local path
+      const managerImageUrl = `/images/managers/${managersMap[player.id].optaId}.png`;
+      console.log(`Using manager image for ${player.web_name}: ${managerImageUrl}`);
+      return managerImageUrl;
+    }
     
-    // Use the flexible image finder
+    // For regular players, use the flexible image finder
+    const playerImageId = player.code || player.id;
     const localImageUrl = findPlayerImage(playerImageId.toString(), player.id.toString());
     
-    // If there's an error, use Premier League API fallback
+    // If there's an error loading the player image, use Premier League API fallback
     if (imageErrors[player.id]) {
       return getPremierLeaguePlayerImageUrl(playerImageId);
     }
@@ -229,18 +347,12 @@ export default function PlayerPredictionTable({
                   <td className="px-2 py-4 whitespace-nowrap text-center">
                     <div className="w-10 h-10 mx-auto relative rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
                       <div className={`${imagesLoaded[player.id] ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 w-full h-full flex items-center justify-center`}>
-                        <Image
+                        <img
                           src={getPlayerImageUrl(player)}
                           alt={player.web_name}
-                          width={48}
-                          height={48}
-                          className="object-cover object-top"
-                          loading="lazy"
-                          onLoadingComplete={() => handleImageLoaded(player.id)}
-                          priority={false}
-                          unoptimized={true}
-                          style={{ height: '100%', width: '100%' }}
+                          className={`h-10 w-10 ${managersMap[player.id]?.isManager ? 'object-contain' : 'rounded-full object-cover'} ${!imagesLoaded[player.id] ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
                           onError={() => handleImageError(player.id)}
+                          onLoad={() => handleImageLoaded(player.id)}
                         />
                       </div>
                       {!imagesLoaded[player.id] && (
@@ -267,27 +379,6 @@ export default function PlayerPredictionTable({
                               }`}>
                                 {player.home_game ? 'H' : 'A'}
                               </span>
-                              
-                              {/* Show double/triple gameweek badge only in single view */}
-                              {player.fixture_count && player.fixture_count > 1 && (
-                                <span className="ml-1 px-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                  {player.fixture_count === 2 ? 'DGW' : `${player.fixture_count}GW`}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary max-w-full">
-                          <span>{player.team_short_name}</span>
-                          <span>•</span>
-                          <span className="font-medium">{player.position}</span>
-                          
-                          {!isTotal && player.fixture_difficulty && (
-                            <>
-                              <span>•</span>
-                              <span className={`${getDifficultyColor(player.fixture_difficulty)}`}>
-                                Difficulty: {player.fixture_difficulty.toFixed(1)}
-                              </span>
                             </>
                           )}
                           
@@ -309,6 +400,15 @@ export default function PlayerPredictionTable({
                               />
                             </>
                           )}
+                        </div>
+                        <div className="flex items-center mt-1">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <span>{player.team_short_name || 'Unknown'}</span>
+                            <span className="mx-1">•</span>
+                            <span className={`font-medium ${managersMap[player.id]?.isManager ? 'text-purple-600 dark:text-purple-400' : ''}`}>
+                              {managersMap[player.id]?.isManager ? 'MNG' : player.position}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>

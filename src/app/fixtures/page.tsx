@@ -2,76 +2,48 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  getFixturesByGameweek, 
+  getFixturesByGameweekWithBroadcasting, 
   getAllTeams, 
   Fixture, 
   Team,
-  getTeamCrestUrl,
-  getDirectTeamId
+  getDirectTeamId,
+  BroadcastingDetails
 } from '@/lib/services/fplApi';
 import { useFplData } from '@/lib/hooks/useFplData';
 import Header from '@/components/Header';
 import Image from 'next/image';
+import { getBroadcasterInfo } from '@/lib/utils/broadcasterUtils';
+import Link from 'next/link';
+
+// Helper function to get correct team ID for crest image
+const getTeamImageId = (team: Team): number => {
+  // Try to get ID from short_name using the getDirectTeamId function
+  if (team.short_name) {
+    const mappedId = getDirectTeamId(team.short_name.toLowerCase());
+    if (mappedId) {
+      return mappedId;
+    }
+  }
+  
+  // Try to get ID from full name
+  if (team.name) {
+    const mappedId = getDirectTeamId(team.name.toLowerCase());
+    if (mappedId) {
+      return mappedId;
+    }
+  }
+  
+  // Fallback to the team's own ID
+  return team.id;
+};
 
 // Helper function to get team crest with fallback
 const getTeamCrestWithFallback = (team: Team) => {
   try {
-    // Special case for Ipswich (IPS)
-    if (team.short_name === 'IPS' || team.short_name?.toLowerCase() === 'ips') {
-      return `/images/teams/team_40_crest.png`;
-    }
-    
-    // First try using the short_name for correct mapping (lowercase it to be safe)
-    if (team.short_name) {
-      try {
-        return getTeamCrestUrl(team.short_name.toLowerCase());
-      } catch (e) {
-        // If this specific method fails, continue to next fallback
-        console.log(`Fallback for ${team.short_name}: initial getTeamCrestUrl failed`);
-      }
-    }
-    
-    // If that fails, try using the full name
-    if (team.name) {
-      try {
-        return getTeamCrestUrl(team.name.toLowerCase());
-      } catch (e) {
-        // If this specific method fails, continue to next fallback
-        console.log(`Fallback for ${team.name}: name-based getTeamCrestUrl failed`);
-      }
-    }
-    
-    // Try using getDirectTeamId as fallback
-    let directId = null;
-    if (team.short_name) {
-      directId = getDirectTeamId(team.short_name.toLowerCase());
-    } 
-    
-    if (!directId && team.name) {
-      directId = getDirectTeamId(team.name.toLowerCase());
-    }
-    
-    if (directId) {
-      return `/images/teams/team_${directId}_crest.png`;
-    }
-    
-    // Manual mapping for known problematic teams
-    const manualMap: Record<string, number> = {
-      'IPS': 40,
-      'ips': 40,
-      'ipw': 40,
-      'ipswich': 40
-    };
-    
-    if (team.short_name && manualMap[team.short_name]) {
-      return `/images/teams/team_${manualMap[team.short_name]}_crest.png`;
-    }
-    
-    // Last resort - use the direct ID
-    return `/images/teams/team_${team.id}_crest.png`;
+    return `/images/teams/team_${getTeamImageId(team)}_crest.png`;
   } catch (error) {
     console.error('Error getting team crest:', error);
-    // Absolute fallback - placeholder image
+    // Fallback if image fails to load
     return '/images/placeholder-crest.svg';
   }
 };
@@ -85,6 +57,24 @@ export default function FixturesPage() {
   const [selectedGameweek, setSelectedGameweek] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Add custom CSS for dark dropdown
+  useEffect(() => {
+    // Add custom styles to the head
+    const style = document.createElement('style');
+    style.innerHTML = `
+      select option {
+        background-color: #1a1a1a !important;
+        color: white !important;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Clean up on unmount
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   
   // Get all gameweeks
   const gameweeks = Array.from({ length: 38 }, (_, i) => i + 1);
@@ -112,7 +102,17 @@ export default function FixturesPage() {
           // If no gameweek is selected, use current gameweek
           if (!selectedGameweek) {
             setSelectedGameweek(fplCurrentGameweek);
-            const fixturesData = await getFixturesByGameweek(fplCurrentGameweek);
+            const fixturesData = await getFixturesByGameweekWithBroadcasting(fplCurrentGameweek);
+            console.log('Loaded fixtures:', fixturesData);
+            
+            // Debug broadcasting data
+            fixturesData.forEach(fixture => {
+              if (fixture.broadcasters && fixture.broadcasters.length > 0) {
+                console.log(`Fixture ${fixture.id} has ${fixture.broadcasters.length} broadcasters:`, 
+                  fixture.broadcasters.map(b => b.abbreviation));
+              }
+            });
+            
             setFixtures(fixturesData);
           }
         }
@@ -131,7 +131,17 @@ export default function FixturesPage() {
     try {
       setLoading(true);
       setSelectedGameweek(gameweek);
-      const fixturesData = await getFixturesByGameweek(gameweek);
+      const fixturesData = await getFixturesByGameweekWithBroadcasting(gameweek);
+      console.log('Loaded fixtures:', fixturesData);
+      
+      // Debug broadcasting data
+      fixturesData.forEach(fixture => {
+        if (fixture.broadcasters && fixture.broadcasters.length > 0) {
+          console.log(`Fixture ${fixture.id} has ${fixture.broadcasters.length} broadcasters:`, 
+            fixture.broadcasters.map(b => b.abbreviation));
+        }
+      });
+      
       setFixtures(fixturesData);
     } catch (err) {
       console.error(`Failed to fetch fixtures for gameweek ${gameweek}`, err);
@@ -187,17 +197,18 @@ export default function FixturesPage() {
             <select
               value={selectedGameweek || ''}
               onChange={(e) => handleGameweekChange(Number(e.target.value))}
-              className="appearance-none bg-light-card dark:bg-dark-card border border-gray-200 dark:border-gray-700 py-2 pl-4 pr-10 rounded-lg text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="appearance-none bg-dark-card text-white border border-gray-700 py-2 pl-4 pr-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={{ colorScheme: 'dark' }}
             >
-              <option value="" disabled>Select Gameweek</option>
+              <option value="" disabled className="bg-dark-card text-white">Select Gameweek</option>
               {gameweeks.map((gw) => (
-                <option key={gw} value={gw}>
+                <option key={gw} value={gw} className="bg-dark-card text-white">
                   Gameweek {gw}{gw === currentGameweek ? ' (Current)' : ''}
                 </option>
               ))}
             </select>
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-              <svg className="h-4 w-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-4 w-4 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </div>
@@ -233,8 +244,10 @@ export default function FixturesPage() {
                         key={fixture.id} 
                         className="p-4 hover:bg-blue-50 dark:hover:bg-slate-700/20 transition-colors"
                       >
-                        <div className="flex flex-col md:flex-row items-center justify-between">
-                          <div className="flex-1 text-center md:text-right mb-2 md:mb-0 flex items-center justify-end">
+                        {/* Main fixture content with fixed structure */}
+                        <div className="grid grid-cols-3 items-center">
+                          {/* Home team - always in left column */}
+                          <div className="flex items-center justify-end">
                             <span className="font-medium mr-3">{homeTeam?.name || 'TBD'}</span>
                             {homeTeam && (
                               <div className="w-8 h-8 relative">
@@ -255,15 +268,22 @@ export default function FixturesPage() {
                             )}
                           </div>
                           
-                          <div className="mx-4 flex flex-col items-center">
+                          {/* Score and time - always in center column */}
+                          <div className="flex flex-col items-center">
                             {fixture.kickoff_time ? (
                               <>
                                 <div className="text-gray-600 dark:text-gray-400 text-xs mb-1">
                                   {new Date(fixture.kickoff_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
-                                <div className="bg-gray-200 dark:bg-slate-700 rounded-lg px-3 py-1 font-bold">
-                                  vs
-                                </div>
+                                {fixture.finished ? (
+                                  <div className="bg-gray-200 dark:bg-slate-700 rounded-lg px-3 py-1 font-bold">
+                                    {fixture.team_h_score} - {fixture.team_a_score}
+                                  </div>
+                                ) : (
+                                  <div className="bg-gray-200 dark:bg-slate-700 rounded-lg px-3 py-1 font-bold">
+                                    vs
+                                  </div>
+                                )}
                               </>
                             ) : (
                               <div className="bg-gray-200 dark:bg-slate-700 rounded-lg px-3 py-1 font-bold">
@@ -272,9 +292,10 @@ export default function FixturesPage() {
                             )}
                           </div>
                           
-                          <div className="flex-1 text-center md:text-left flex items-center">
+                          {/* Away team - always in right column */}
+                          <div className="flex items-center justify-start">
                             {awayTeam && (
-                              <div className="w-8 h-8 relative mr-3">
+                              <div className="w-8 h-8 relative">
                                 <Image 
                                   src={getTeamCrestWithFallback(awayTeam)} 
                                   alt={awayTeam.name}
@@ -290,9 +311,64 @@ export default function FixturesPage() {
                                 />
                               </div>
                             )}
-                            <span className="font-medium">{awayTeam?.name || 'TBD'}</span>
+                            <span className="font-medium ml-3">{awayTeam?.name || 'TBD'}</span>
                           </div>
                         </div>
+                        
+                        {/* Broadcasting details - in separate row below */}
+                        {fixture.broadcasters && fixture.broadcasters.length > 0 && (
+                          <div className="mt-2 flex justify-center gap-1">
+                            {fixture.broadcasters.map((broadcaster, index) => {
+                              // Get the abbreviation, handling both direct abbreviation and tvShows
+                              const abbreviation = broadcaster.abbreviation || 
+                                (broadcaster.tvShows && broadcaster.tvShows.length > 0 ? broadcaster.tvShows[0].abbreviation : '');
+                              
+                              const broadcasterInfo = getBroadcasterInfo(abbreviation);
+                              
+                              // Use the URL from the API if available, otherwise use our default
+                              const url = broadcaster.url || broadcasterInfo.url || '#';
+                              
+                              return (
+                                <Link 
+                                  key={index}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-block"
+                                  title={broadcaster.name || broadcasterInfo.name}
+                                >
+                                  {broadcasterInfo.logo ? (
+                                    <div 
+                                      className="h-6 px-2 py-1 rounded flex items-center justify-center border border-gray-700" 
+                                      style={{ 
+                                        backgroundColor: broadcasterInfo.backgroundColor,
+                                        color: broadcasterInfo.textColor
+                                      }}
+                                    >
+                                      <div className="bg-white rounded p-0.5">
+                                        <img 
+                                          src={broadcasterInfo.logo} 
+                                          alt={broadcaster.name || broadcasterInfo.name} 
+                                          className="h-4 w-auto"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div 
+                                      className="h-6 px-2 py-1 rounded text-xs font-bold flex items-center justify-center border border-gray-700" 
+                                      style={{ 
+                                        backgroundColor: broadcasterInfo.backgroundColor,
+                                        color: broadcasterInfo.textColor
+                                      }}
+                                    >
+                                      {abbreviation}
+                                    </div>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

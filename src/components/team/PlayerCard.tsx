@@ -1,11 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import { TeamPlayer } from '@/lib/utils/teamBuilder';
-import { findPlayerImage, getPremierLeaguePlayerImageUrl } from '@/lib/utils/playerImages';
+import { getPersonImageUrl, getPremierLeaguePlayerImageUrl, checkIfManager } from '@/lib/utils/playerImages';
+import { getManagerImageUrl } from '@/lib/utils/managerImages';
+
+// New interface to handle all required properties including team property
+interface PlayerWithTeamDetails {
+  id: number;
+  code?: number;
+  web_name: string;
+  first_name?: string;
+  second_name?: string;
+  now_cost?: number;
+  position: string;
+  element_type: number;
+  price: number;
+  team: {
+    name: string;
+    short_name: string;
+  } | number;
+  team_short_name?: string;
+  team_name?: string;
+  total_points?: number;
+  form?: string;
+  predicted_points?: number;
+  fixtures?: any[];
+  home_game?: boolean;
+  chance_of_playing_next_round?: number | null;
+  purchase_price?: number;
+  news?: string;
+  isManager?: boolean;
+  optaId?: string;
+}
 
 interface PlayerCardProps {
-  player: TeamPlayer;
+  player: PlayerWithTeamDetails;
   onRemove?: () => void;
   showRemove?: boolean;
   showImage?: boolean;
@@ -28,6 +58,7 @@ export default function PlayerCard({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [useExternalImage, setUseExternalImage] = useState(false);
+  const [playerWithManagerCheck, setPlayerWithManagerCheck] = useState<PlayerWithTeamDetails>(player);
   
   // Function to force refresh the image
   const refreshImage = (e: React.MouseEvent) => {
@@ -37,11 +68,38 @@ export default function PlayerCard({
     setImageLoaded(false);
   };
 
+  // Check if player is actually a manager on component mount
+  useEffect(() => {
+    // Only perform check if we have a team object with a name
+    if (typeof player.team === 'object' && player.team.name) {
+      const { isManager, optaId } = checkIfManager(player.web_name, player.team.name);
+      if (isManager) {
+        setPlayerWithManagerCheck({
+          ...player,
+          isManager: true,
+          optaId,
+          position: 'Manager' // Override position to show as Manager
+        });
+      }
+    }
+  }, [player]);
+
   // Get the player code for image URLs - this is different from the player.id
   const playerImageId = player.code || player.id;
 
-  // Use the more flexible image finder
-  const localPlayerImageUrl = findPlayerImage(player.code || '', player.id);
+  // Determine image URL based on whether this is a manager or player
+  let localImageUrl;
+  if (playerWithManagerCheck.isManager && playerWithManagerCheck.optaId) {
+    localImageUrl = getManagerImageUrl(playerWithManagerCheck.optaId);
+  } else {
+    // Use the person image finder that handles both players and managers
+    localImageUrl = getPersonImageUrl(
+      player.web_name, 
+      typeof player.team === 'object' ? player.team.name : '', 
+      player.code || '', 
+      player.id
+    );
+  }
   
   // Placeholder image for when local image fails
   const placeholderImageUrl = '/images/placeholder-shirt.svg';
@@ -56,7 +114,7 @@ export default function PlayerCard({
   };
   
   // Determine which image URL to use
-  let imageUrl = localPlayerImageUrl;
+  let imageUrl = localImageUrl;
   
   if (localImageError) {
     imageUrl = useExternalImage ? plImageUrl : placeholderImageUrl;
@@ -203,52 +261,46 @@ export default function PlayerCard({
       )}
       
       <div className="p-4">
-        {/* Player Name and Team */}
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-start">
           <div>
-            <div className="text-sm font-medium text-gray-800">
-              {player.web_name}
-            </div>
-            <div className="text-xs text-gray-500 flex items-center">
-              <span className="mr-1">{player.team_short_name}</span>
-              <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100`}>
-                {player.position}
-              </span>
+            <h3 className="font-medium text-gray-900">{player.web_name}</h3>
+            <div className="text-sm text-gray-600 flex items-center space-x-1">
+              <span>{typeof player.team === 'object' ? player.team.short_name : 'Unknown'}</span>
+              <span>•</span>
+              <span>{playerWithManagerCheck.isManager ? 'Manager' : player.position}</span>
+              {player.price !== undefined && (
+                <>
+                  <span>•</span>
+                  <span>£{(player.price / 10).toFixed(1)}m</span>
+                </>
+              )}
             </div>
           </div>
-          <div className="text-sm font-bold">
-            £{
-              // Use selling_price if available and not zero
-              player.selling_price !== undefined && player.selling_price > 0 
-                ? player.selling_price.toFixed(1) 
-                // Otherwise use price or now_cost/10
-                : player.price 
-                  ? player.price.toFixed(1) 
-                  : ((player.now_cost || 0) / 10).toFixed(1)
-            }m
-          </div>
-        </div>
-        
-        {/* Other player info as needed */}
-        <div className="text-xs text-gray-500 flex justify-between">
-          <div>{player.total_points || 0} points</div>
-          {player.predicted_points && (
-            <div className="text-green-600 font-medium">
-              Predicted: {player.predicted_points.toFixed(1)}
-            </div>
+          
+          {showRemove && onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="text-red-500 hover:text-red-700"
+            >
+              <XCircleIcon className="h-5 w-5" />
+            </button>
           )}
         </div>
         
-        {/* Remove button */}
-        {showRemove && onRemove && (
-          <button
-            onClick={onRemove}
-            className="mt-2 w-full py-1 bg-red-50 text-red-600 text-xs font-medium rounded border border-red-100 hover:bg-red-100 transition-colors"
-          >
-            Remove
-          </button>
+        {/* Injury/Suspension Warning */}
+        {player.chance_of_playing_next_round !== undefined && 
+          player.chance_of_playing_next_round !== null && 
+          player.chance_of_playing_next_round < 100 && (
+          <div className="mt-2 text-xs text-yellow-800 bg-yellow-100 px-2 py-1 rounded">
+            <span className="font-semibold">Warning: </span>
+            {player.chance_of_playing_next_round}% chance of playing
+            {player.news ? ` - ${player.news}` : ''}
+          </div>
         )}
       </div>
     </div>
   );
-} 
+}

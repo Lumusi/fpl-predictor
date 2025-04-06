@@ -2,6 +2,9 @@
  * Utility functions for player images
  */
 
+import { getManagerByTeam } from './managerImages';
+import { Team } from '../services/fplApi';
+
 /**
  * Get the URL for a player's image from the players directory
  * @param playerId - The player's code (not the regular ID)
@@ -69,6 +72,58 @@ export function getPremierLeaguePlayerImageUrl(playerId: number | string): strin
 }
 
 /**
+ * Check if a player is actually a manager based on name matching
+ * @param playerName - The player's name
+ * @param teamName - The team name
+ * @returns Object with isManager flag and manager data if it's a manager
+ */
+export function checkIfManager(playerName: string, teamName: string): { isManager: boolean; optaId?: string; } {
+  if (!playerName || !teamName) {
+    return { isManager: false };
+  }
+  
+  // Check if this player's name matches any manager name
+  const manager = getManagerByTeam(teamName);
+  
+  // If the player's name matches a manager's name, mark as manager
+  if (manager && playerName.toLowerCase().includes(manager.name.toLowerCase())) {
+    return {
+      isManager: true,
+      optaId: manager.id
+    };
+  }
+  
+  return { isManager: false };
+}
+
+/**
+ * Get the appropriate image URL for a player or manager
+ * @param playerName - The player's name
+ * @param teamName - The team name
+ * @param playerCode - The player's code for image lookup
+ * @param playerId - The player's ID as fallback
+ * @returns The URL to the appropriate image
+ */
+export function getPersonImageUrl(
+  playerName: string, 
+  teamName: string, 
+  playerCode: number | string,
+  playerId?: number | string
+): string {
+  // Check if this is a manager
+  const { isManager, optaId } = checkIfManager(playerName, teamName);
+  
+  if (isManager && optaId) {
+    // Return manager image path
+    return `/images/managers/${optaId}.png`;
+  }
+  
+  // Otherwise use the player image finder
+  const playerImageId = playerCode || playerId;
+  return findPlayerImage(playerImageId?.toString() || '', playerId?.toString());
+}
+
+/**
  * Utility function to check if a player image exists via the API
  * Note: This makes a network request and should be used sparingly
  * @param playerId - The player's ID
@@ -98,4 +153,4 @@ export async function getAvailablePlayerImages(): Promise<string[]> {
     console.error('Error getting available player images:', error);
     return [];
   }
-} 
+}

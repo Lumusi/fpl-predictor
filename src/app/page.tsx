@@ -29,6 +29,8 @@ export default function Home() {
       />
       
       <main className="container mx-auto py-8 px-4 text-light-text-primary dark:text-dark-text-primary">
+        <h1 className="text-2xl font-bold mb-6">Status</h1>
+        
         <FutureGameweeks 
           futurePredictions={futurePredictions} 
           currentGameweek={currentGameweek} 
