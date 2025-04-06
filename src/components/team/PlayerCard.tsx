@@ -16,10 +16,11 @@ interface PlayerWithTeamDetails {
   position: string;
   element_type: number;
   price: number;
-  team: {
+  // Make team optional to match TeamPlayer interface
+  team?: {
     name: string;
     short_name: string;
-  } | number | undefined;
+  } | number;
   team_short_name?: string;
   team_name?: string;
   total_points?: number;
