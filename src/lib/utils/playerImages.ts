@@ -6,7 +6,7 @@ import { getManagerByTeam } from './managerImages';
 import { Team } from '../services/fplApi';
 
 /**
- * Get the URL for a player's image from the players directory
+ * Get the URL for a player's image from the official Premier League website.
  * @param playerId - The player's code (not the regular ID)
  * @param useFallback - Whether to use placeholder when image doesn't exist (default: true)
  * @returns The URL to the player's image
@@ -16,12 +16,11 @@ export function getPlayerImageUrl(playerId: number | string, useFallback: boolea
     return useFallback ? '/images/placeholder-shirt.svg' : '';
   }
   
-  // Primary location: public/images/players folder
-  return `/images/players/${playerId}.png`;
+  return getPremierLeaguePlayerImageUrl(playerId);
 }
 
 /**
- * Try multiple formats to find a player image
+ * Try to find a player image using a primary and fallback ID.
  * This is a fallback solution when the standard image naming convention doesn't match
  * @param playerId - Primary ID to try (usually the code)
  * @param fallbackId - Fallback ID to try (usually the element ID)
@@ -29,32 +28,17 @@ export function getPlayerImageUrl(playerId: number | string, useFallback: boolea
  * @returns URL to the best available image
  */
 export function findPlayerImage(playerId: number | string, fallbackId?: number | string, useFallback: boolean = true): string {
-  if (!playerId && !fallbackId) {
-    return useFallback ? '/images/placeholder-shirt.svg' : '';
-  }
-  
-  const paths = [];
-  
-  // List of possible paths to try in order
   if (playerId) {
-    paths.push(`/images/players/${playerId}.png`);
-    // Also try without leading zeros if it's a string with leading zeros
-    if (typeof playerId === 'string' && playerId.startsWith('0')) {
-      paths.push(`/images/players/${parseInt(playerId, 10)}.png`);
-    }
+    const url = getPremierLeaguePlayerImageUrl(playerId);
+    if (url) return url;
   }
   
   if (fallbackId && fallbackId !== playerId) {
-    paths.push(`/images/players/${fallbackId}.png`);
-    // Also try without leading zeros
-    if (typeof fallbackId === 'string' && fallbackId.startsWith('0')) {
-      paths.push(`/images/players/${parseInt(fallbackId, 10)}.png`);
-    }
+    const url = getPremierLeaguePlayerImageUrl(fallbackId);
+    if (url) return url;
   }
   
-  // Always return the first path, as we can't check if files exist on the client side
-  // The image component will handle fallbacks if the file doesn't exist
-  return paths[0] || (useFallback ? '/images/placeholder-shirt.svg' : '');
+  return useFallback ? '/images/placeholder-shirt.svg' : '';
 }
 
 /**
@@ -68,7 +52,7 @@ export function getPremierLeaguePlayerImageUrl(playerId: number | string): strin
     return '';
   }
   
-  return `https://resources.premierleague.com/premierleague/photos/players/250x250/p${playerId}.png`;
+  return `https://resources.premierleague.com/premierleague25/photos/players/110x140/${playerId}.png`;
 }
 
 /**

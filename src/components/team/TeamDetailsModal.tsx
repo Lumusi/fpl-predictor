@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Team, getDirectTeamId } from '@/lib/services/fplApi';
 import { getManagerByTeam, getManagerImageUrlByTeam } from '@/lib/utils/managerImages';
+import { getPremierLeagueTeamImageUrl } from '@/lib/utils/teamImages';
 
 interface TeamDetailsModalProps {
   team: Team;
@@ -32,7 +33,7 @@ const getTeamImageId = (team: Team): number => {
 };
 
 export default function TeamDetailsModal({ team, isOpen, onClose }: TeamDetailsModalProps) {
-  const [imageError, setImageError] = useState(false);
+  // `imageError` state was declared but not used. Removed.
   
   // Get manager data for the team
   const manager = getManagerByTeam(team.name);
@@ -64,7 +65,7 @@ export default function TeamDetailsModal({ team, isOpen, onClose }: TeamDetailsM
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-16 h-16 relative">
                   <Image 
-                    src={`/images/teams/team_${getTeamImageId(team)}_crest.png`} 
+                    src={getPremierLeagueTeamImageUrl(getTeamImageId(team))} 
                     alt={team.name}
                     width={64}
                     height={64}
@@ -122,7 +123,7 @@ export default function TeamDetailsModal({ team, isOpen, onClose }: TeamDetailsM
                     className="object-cover rounded"
                     unoptimized
                     onError={(e) => {
-                      setImageError(true);
+                      // `setImageError(true)` was declared but not used.
                       // Fallback if image fails to load
                       const target = e.target as HTMLImageElement;
                       target.src = '/images/placeholder-manager.svg';
