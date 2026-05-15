@@ -39,3 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE / workspace
+fpl-predictor.code-workspace
+.idea/
+.vscode/
+
+# AI context (not for public repo)
+GEMINI.md
+.hermes/
+
+# Debug / generated files
+debug/
+manager-opta-codes.html
+
+# Fetched data (regenerable from FPL API)
+data/players_data.json
