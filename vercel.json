@@ -1,16 +1,3 @@
 {
-  "buildCommand": "next build --no-lint",
-  "redirects": [
-    {
-      "source": "/",
-      "destination": "https://www.fpl.lumusimc.co.uk",
-      "has": [
-        {
-          "type": "host",
-          "value": "fpl.lumusimc.co.uk"
-        }
-      ],
-      "permanent": true
-    }
-  ]
+  "buildCommand": "next build --no-lint"
 }
