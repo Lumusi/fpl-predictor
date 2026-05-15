@@ -46,7 +46,7 @@ async function downloadImage(url: string, filePath: string): Promise<boolean> {
 
     // Check if we got a valid image response
     const contentType = response.headers['content-type'];
-    if (!contentType || !contentType.startsWith('image/')) {
+    if (!contentType || typeof contentType !== 'string' || !contentType.startsWith('image/')) {
       console.error(`Invalid content type for ${url}: ${contentType}`);
       return false;
     }

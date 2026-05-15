@@ -58,10 +58,10 @@ export default function FutureGameweeks({
   return (
     <div className="space-y-4">
       {/* Gameweek selector */}
-      <div className="flex flex-wrap gap-2 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-md">
-        <div className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
+      <div className="flex flex-wrap gap-2 p-4 bg-light-card dark:bg-dark-card rounded-xl shadow-md border border-slate-200 dark:border-slate-800">
+        <div className="font-medium text-light-text-secondary dark:text-dark-text-secondary flex items-center">
           <span>{viewMode === 'single' ? 'Select Gameweek:' : 'Include Gameweeks:'}</span>
-          <ChevronRightIcon className="h-4 w-4 mx-1 text-gray-400 dark:text-gray-500" />
+          <ChevronRightIcon className="h-4 w-4 mx-1 text-slate-400" />
         </div>
         <div className="flex flex-wrap gap-1">
           {viewMode === 'single' ? (
@@ -72,8 +72,8 @@ export default function FutureGameweeks({
                 onClick={() => setSelectedGameweek(gw)}
                 className={`px-3 py-1 text-sm rounded-md transition-all ${
                   gw === gameweekToShow
-                    ? 'bg-blue-600 text-white font-bold shadow-sm dark:bg-blue-700'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600'
+                    ? 'bg-blue-600 text-white font-bold shadow-sm'
+                    : 'bg-slate-100 text-light-text-secondary hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
                 }`}
               >
                 GW {gw}
@@ -84,13 +84,13 @@ export default function FutureGameweeks({
             <>
               <button
                 onClick={() => setSelectedGameweeks([...availableGameweeks])}
-                className="px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded-md transition-all dark:bg-green-700 dark:hover:bg-green-800"
+                className="px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded-md transition-all"
               >
                 Select All
               </button>
               <button
                 onClick={() => setSelectedGameweeks([])}
-                className="px-3 py-1 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md transition-all dark:bg-red-700 dark:hover:bg-red-800"
+                className="px-3 py-1 text-sm bg-red-600 text-white hover:bg-red-700 rounded-md transition-all"
               >
                 Clear All
               </button>
@@ -98,11 +98,11 @@ export default function FutureGameweeks({
                 <button
                   key={gw}
                   onClick={() => toggleGameweekSelection(gw)}
-                  className={`px-3 py-1 text-sm rounded-md transition-all ${
+                className={`px-3 py-1 text-sm rounded-md transition-all ${
                     selectedGameweeks.includes(gw)
-                      ? 'bg-blue-600 text-white font-bold shadow-sm dark:bg-blue-700'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600'
-                  }`}
+                      ? 'bg-blue-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 text-light-text-secondary hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                }`}
                 >
                   GW {gw}
                 </button>
@@ -118,9 +118,9 @@ export default function FutureGameweeks({
         loading={loading}
       />
       
-      <div className="p-5 bg-white dark:bg-slate-800 rounded-lg shadow-md">
-        <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-3">Prediction Notes:</h2>
-        <ul className="list-disc pl-5 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+      <div className="p-5 bg-light-card dark:bg-dark-card rounded-xl shadow-md border border-slate-200 dark:border-slate-800">
+        <h2 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary mb-3">Prediction Notes:</h2>
+        <ul className="list-disc pl-5 space-y-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
           <li>Predictions are based on player form, fixtures, home/away advantage, and playing time</li>
           <li>Further gameweeks have less certainty, especially for rotation-risk players</li>
           <li>These predictions don&apos;t account for injuries or team news announced after the last data update</li>

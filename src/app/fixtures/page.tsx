@@ -7,46 +7,14 @@ import {
   Fixture, 
   Team,
   getDirectTeamId,
-  BroadcastingDetails
+  BroadcastingDetails,
+  getTeamCrestUrl
 } from '@/lib/services/fplApi';
 import { useFplData } from '@/lib/hooks/useFplData';
 import Header from '@/components/Header';
 import Image from 'next/image';
 import { getBroadcasterInfo } from '@/lib/utils/broadcasterUtils';
 import Link from 'next/link';
-
-// Helper function to get correct team ID for crest image
-const getTeamImageId = (team: Team): number => {
-  // Try to get ID from short_name using the getDirectTeamId function
-  if (team.short_name) {
-    const mappedId = getDirectTeamId(team.short_name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Try to get ID from full name
-  if (team.name) {
-    const mappedId = getDirectTeamId(team.name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Fallback to the team's own ID
-  return team.id;
-};
-
-// Helper function to get team crest with fallback
-const getTeamCrestWithFallback = (team: Team) => {
-  try {
-    return `/images/teams/team_${getTeamImageId(team)}_crest.png`;
-  } catch (error) {
-    console.error('Error getting team crest:', error);
-    // Fallback if image fails to load
-    return '/images/placeholder-crest.svg';
-  }
-};
 
 export default function FixturesPage() {
   const { currentGameweek: fplCurrentGameweek } = useFplData();
@@ -57,24 +25,6 @@ export default function FixturesPage() {
   const [selectedGameweek, setSelectedGameweek] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Add custom CSS for dark dropdown
-  useEffect(() => {
-    // Add custom styles to the head
-    const style = document.createElement('style');
-    style.innerHTML = `
-      select option {
-        background-color: #1a1a1a !important;
-        color: white !important;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // Clean up on unmount
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
   
   // Get all gameweeks
   const gameweeks = Array.from({ length: 38 }, (_, i) => i + 1);
@@ -230,11 +180,11 @@ export default function FixturesPage() {
         ) : (
           <div className="space-y-8">
             {sortedDates.map((date) => (
-              <div key={date} className="bg-light-card dark:bg-dark-card rounded-lg shadow overflow-hidden">
-                <div className="bg-blue-600 text-white py-3 px-4">
+              <div key={date} className="bg-light-card dark:bg-dark-card rounded-xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 px-5">
                   <h2 className="font-bold">{date}</h2>
                 </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
                   {fixturesByDate[date].map((fixture) => {
                     const homeTeam = teamMap[fixture.team_h];
                     const awayTeam = teamMap[fixture.team_a];
@@ -242,7 +192,7 @@ export default function FixturesPage() {
                     return (
                       <div 
                         key={fixture.id} 
-                        className="p-4 hover:bg-blue-50 dark:hover:bg-slate-700/20 transition-colors"
+                        className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
                       >
                         {/* Main fixture content with fixed structure */}
                         <div className="grid grid-cols-3 items-center">
@@ -252,7 +202,7 @@ export default function FixturesPage() {
                             {homeTeam && (
                               <div className="w-8 h-8 relative">
                                 <Image 
-                                  src={getTeamCrestWithFallback(homeTeam)} 
+                                  src={getTeamCrestUrl(homeTeam)} 
                                   alt={homeTeam.name}
                                   width={32}
                                   height={32}
@@ -297,7 +247,7 @@ export default function FixturesPage() {
                             {awayTeam && (
                               <div className="w-8 h-8 relative">
                                 <Image 
-                                  src={getTeamCrestWithFallback(awayTeam)} 
+                                  src={getTeamCrestUrl(awayTeam)} 
                                   alt={awayTeam.name}
                                   width={32}
                                   height={32}

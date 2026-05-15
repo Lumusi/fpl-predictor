@@ -62,24 +62,6 @@ export default function HighlightsPage() {
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   const [dreamTeamData, setDreamTeamData] = useState<DreamTeam | null>(null);
 
-  // Add custom CSS for dark dropdown
-  useEffect(() => {
-    // Add custom styles to the head
-    const style = document.createElement('style');
-    style.innerHTML = `
-      select option {
-        background-color: #1a1a1a !important;
-        color: white !important;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // Clean up on unmount
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   // Get all gameweeks
   const gameweeks = Array.from({ length: 38 }, (_, i) => i + 1);
 
@@ -351,11 +333,11 @@ export default function HighlightsPage() {
         ) : (
           <div className="space-y-8">
             {highlights.map((highlight, index) => (
-              <div key={index} className="bg-light-card dark:bg-dark-card rounded-lg shadow overflow-hidden">
-                <div className="bg-blue-600 text-white py-3 px-4">
+              <div key={index} className="bg-light-card dark:bg-dark-card rounded-xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 px-5">
                   <h2 className="font-bold">{highlight.title}</h2>
                 </div>
-                <div className="p-4">
+                <div className="p-5">
                   <p className="text-gray-600 dark:text-gray-400 mb-4">{highlight.description}</p>
                   
                   {/* Top Performers */}

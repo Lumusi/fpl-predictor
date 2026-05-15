@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import ErrorDisplay from '@/components/ErrorDisplay';
 import { Tab } from '@headlessui/react';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
-import { STATIC_TEAM_ID_MAP, getDirectTeamId, getSetPieceNotes, TeamSetPieceData } from '@/lib/services/fplApi';
+import { STATIC_TEAM_ID_MAP, getDirectTeamId, getSetPieceNotes, TeamSetPieceData, getTeamCrestUrl } from '@/lib/services/fplApi';
 import Image from 'next/image';
 
 type PlayerStatus = {
@@ -126,28 +126,6 @@ const getTeamColors = (teamShortName: string): string => {
     case 'NEW': return 'bg-black';
     default: return 'bg-gray-300';
   }
-};
-
-// Helper function to get correct team ID for crest image
-const getTeamImageId = (team: any): number => {
-  // Try to get ID from short_name using the getDirectTeamId function
-  if (team.short_name) {
-    const mappedId = getDirectTeamId(team.short_name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Try to get ID from full name
-  if (team.name) {
-    const mappedId = getDirectTeamId(team.name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Fallback to the team's own ID
-  return team.id;
 };
 
 // Function to extract player names from set piece notes
@@ -330,7 +308,7 @@ export default function ScoutPage() {
         // Process each team's data
         data.teams.forEach((team: TeamSetPieceData) => {
           // Get team ID using same method as crest images
-          const teamImageId = getTeamImageId(team);
+          const teamImageId = getDirectTeamId(team.id.toString())!;
           
           // Use manual mapping if available
           const manualData = manualSetPieceTakers[teamImageId];
@@ -469,7 +447,7 @@ export default function ScoutPage() {
                 ) : (
                   <div className="space-y-4">
                     {teams?.map(team => {
-                      const teamImageId = getTeamImageId(team);
+                      const teamImageId = getDirectTeamId(team.short_name)!;
                       const teamSetPieces = setPieceData[teamImageId];
                       const isExpanded = expandedTeams[teamImageId] || false;
                       
@@ -485,13 +463,13 @@ export default function ScoutPage() {
                             <div className="flex items-center">
                               <div className="w-8 h-8 mr-3 relative">
                                 <Image 
-                                  src={`/images/teams/team_${teamImageId}_crest.png`}
+                                  src={getTeamCrestUrl(team)}
                                   alt={team.name || 'Team crest'}
                                   width={28}
                                   height={28}
                                   className="object-contain w-full h-full"
                                   unoptimized
-                                  priority={teamImageId < 10}
+                                  priority={team.id < 10}
                                   onError={(e) => {
                                     console.error(`Image load error for team: ${team.short_name || team.name}`);
                                     // Fallback if image fails to load

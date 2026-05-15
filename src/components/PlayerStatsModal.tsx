@@ -6,7 +6,6 @@ import { findPlayerImage, getPremierLeaguePlayerImageUrl } from '@/lib/utils/pla
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { TeamPlayer } from '@/lib/utils/teamBuilder';
-import { getTeamCrestUrl } from '@/lib/services/fplApi';
 
 interface PlayerHistoryEntry {
   element: number;
@@ -129,7 +128,9 @@ export default function PlayerStatsModal({ player, isOpen, onClose }: PlayerStat
     }
     
     try {
-      const crestUrl = await getTeamCrestUrl(teamId);
+      const crestUrl = teamId 
+        ? `https://resources.premierleague.com/premierleague/badges/t${teamId}.svg`
+        : '';
       // For demo data
       setTeam({
         id: teamId,

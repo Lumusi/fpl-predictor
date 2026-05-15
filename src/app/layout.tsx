@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
@@ -12,15 +12,21 @@ export const metadata: Metadata = {
     icon: '/premier-league-logo.svg',
     apple: '/premier-league-logo.svg',
   },
-  // Add mobile-specific metadata
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
-  themeColor: "#37003C", // Premier League purple color
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "FPL Predictor"
   },
   manifest: "/manifest.json"
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#37003C",
 };
 
 export default function RootLayout({

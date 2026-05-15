@@ -31,6 +31,7 @@ export interface Player {
   points_per_game: string;
   selected_by_percent: string;
   status: string;
+  transfers_in_event?: number;
   chance_of_playing_next_round: number | null;
   fixtures?: {
     is_home: boolean;
@@ -44,6 +45,7 @@ export interface Player {
 
 export interface Team {
   id: number;
+  code: number;
   name: string;
   short_name: string;
   strength: number;
@@ -303,21 +305,18 @@ export function getTeamShirtUrl(_teamId: number | string, _type: 'home' | 'away'
 }
 
 // Get URL for team crest/badge
-export function getTeamCrestUrl(teamId: number | string): string {
+export function getTeamCrestUrl(team: Team): string {
   try {
-    // Ensure teamId is a number
-    const id = typeof teamId === 'string' ? parseInt(teamId, 10) : teamId;
-    
     // For server-side access, use absolute URL from the Premier League API 
     // For client-side, use relative URL to our static assets
     const isServerSide = typeof window === 'undefined';
     
     if (isServerSide) {
       // Use Premier League API URL
-      return `https://resources.premierleague.com/premierleague/badges/t${id}.png`;
+      return `https://resources.premierleague.com/premierleague/badges/t${team.code}.svg`;
     } else {
       // Try our local cached version first
-      return `/images/teams/badges/${id}.png`;
+      return `/images/teams/team_${team.id}_crest.png`;
     }
   } catch (error) {
     console.error('Error getting team crest URL:', error);

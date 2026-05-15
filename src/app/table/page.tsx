@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getLeagueTable, getFixtures, Team, Fixture, getDirectTeamId } from '@/lib/services/fplApi';
+import { getLeagueTable, getFixtures, Team, Fixture, getDirectTeamId, getTeamCrestUrl } from '@/lib/services/fplApi';
 import { useFplData } from '@/lib/hooks/useFplData';
 import Header from '@/components/Header';
 import Image from 'next/image';
@@ -37,28 +37,6 @@ const getPositionStyle = (position: number) => {
 
 // Define form result type to include '-'
 type FormResult = 'W' | 'L' | 'D' | '-';
-
-// Helper function to get correct team ID for crest image
-const getTeamImageId = (team: Team): number => {
-  // Try to get ID from short_name using the getDirectTeamId function
-  if (team.short_name) {
-    const mappedId = getDirectTeamId(team.short_name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Try to get ID from full name
-  if (team.name) {
-    const mappedId = getDirectTeamId(team.name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Fallback to the team's own ID
-  return team.id;
-};
 
 export default function LeagueTablePage() {
   const { currentGameweek: fplCurrentGameweek } = useFplData();
@@ -156,7 +134,7 @@ export default function LeagueTablePage() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-light-background dark:bg-dark-background text-light-text-primary dark:text-dark-text-primary transition-colors duration-300">
       <Header currentGameweek={fplCurrentGameweek || 0} />
       
       <main className="container mx-auto py-8 px-4">
@@ -176,8 +154,8 @@ export default function LeagueTablePage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm bg-gray-800 text-white rounded-lg shadow overflow-hidden border-collapse">
-              <thead className="bg-gray-700 text-xs">
+            <table className="w-full text-sm bg-light-card dark:bg-dark-card text-light-text-primary dark:text-dark-text-primary rounded-lg shadow overflow-hidden border-collapse">
+              <thead className="bg-light-background dark:bg-dark-background text-xs">
                 <tr>
                   <th className="py-2 px-2 text-center w-10">#</th>
                   <th className="py-2 px-2 text-left">Team</th>
@@ -196,7 +174,7 @@ export default function LeagueTablePage() {
                   <tr 
                     key={team.id} 
                     className={`
-                      border-b border-gray-700 hover:bg-gray-600/40
+                      border-b border-gray-200 dark:border-gray-700 hover:bg-light-accent/20 dark:hover:bg-dark-accent/20
                       ${getPositionStyle(team.position!)}
                       cursor-pointer
                     `}
@@ -210,7 +188,7 @@ export default function LeagueTablePage() {
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 relative">
                           <Image 
-                            src={`/images/teams/team_${getTeamImageId(team)}_crest.png`} 
+                            src={getTeamCrestUrl(team)} 
                             alt={team.name}
                             width={24}
                             height={24}
@@ -264,38 +242,38 @@ export default function LeagueTablePage() {
         )}
         
         <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-          <div className="bg-gray-800 p-4 rounded-lg shadow">
-            <div className="flex items-center mb-2">
-              <div className="w-4 h-4 bg-green-500/20 rounded mr-2"></div>
-              <span className="font-medium">Champion</span>
+            <div className="bg-light-card dark:bg-dark-card p-4 rounded-lg shadow">
+              <div className="flex items-center mb-2">
+                <div className="w-4 h-4 bg-green-500/20 rounded mr-2"></div>
+                <span className="font-medium text-light-text-primary dark:text-dark-text-primary">Champion</span>
+              </div>
+              <p className="text-light-text-secondary dark:text-dark-text-secondary">Top team wins the Premier League.</p>
             </div>
-            <p className="text-gray-400">Top team wins the Premier League.</p>
-          </div>
-          
-          <div className="bg-gray-800 p-4 rounded-lg shadow">
-            <div className="flex items-center mb-2">
-              <div className="w-4 h-4 bg-blue-500/20 rounded mr-2"></div>
-              <span className="font-medium">UEFA Champions League</span>
+            
+            <div className="bg-light-card dark:bg-dark-card p-4 rounded-lg shadow">
+              <div className="flex items-center mb-2">
+                <div className="w-4 h-4 bg-blue-500/20 rounded mr-2"></div>
+                <span className="font-medium text-light-text-primary dark:text-dark-text-primary">UEFA Champions League</span>
+              </div>
+              <p className="text-light-text-secondary dark:text-dark-text-secondary">Top 4 teams qualify for the Champions League group stage.</p>
             </div>
-            <p className="text-gray-400">Top 4 teams qualify for the Champions League group stage.</p>
-          </div>
-          
-          <div className="bg-gray-800 p-4 rounded-lg shadow">
-            <div className="flex items-center mb-2">
-              <div className="w-4 h-4 bg-orange-400/20 rounded mr-2"></div>
-              <span className="font-medium">UEFA Europa League</span>
+            
+            <div className="bg-light-card dark:bg-dark-card p-4 rounded-lg shadow">
+              <div className="flex items-center mb-2">
+                <div className="w-4 h-4 bg-orange-400/20 rounded mr-2"></div>
+                <span className="font-medium text-light-text-primary dark:text-dark-text-primary">UEFA Europa League</span>
+              </div>
+              <p className="text-light-text-secondary dark:text-dark-text-secondary">5th place team qualifies for the Europa League group stage.</p>
             </div>
-            <p className="text-gray-400">5th place team qualifies for the Europa League group stage.</p>
-          </div>
-          
-          <div className="bg-gray-800 p-4 rounded-lg shadow">
-            <div className="flex items-center mb-2">
-              <div className="w-4 h-4 bg-red-500/20 rounded mr-2"></div>
-              <span className="font-medium">Relegation</span>
+            
+            <div className="bg-light-card dark:bg-dark-card p-4 rounded-lg shadow">
+              <div className="flex items-center mb-2">
+                <div className="w-4 h-4 bg-red-500/20 rounded mr-2"></div>
+                <span className="font-medium text-light-text-primary dark:text-dark-text-primary">Relegation</span>
+              </div>
+              <p className="text-light-text-secondary dark:text-dark-text-secondary">Bottom 3 teams are relegated to the Championship.</p>
             </div>
-            <p className="text-gray-400">Bottom 3 teams are relegated to the Championship.</p>
           </div>
-        </div>
       </main>
     </div>
   );

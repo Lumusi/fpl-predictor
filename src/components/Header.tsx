@@ -1,8 +1,10 @@
+'use client';
+
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useTheme } from 'next-themes';
 
 interface HeaderProps {
@@ -11,134 +13,150 @@ interface HeaderProps {
   onRefresh?: () => void;
 }
 
+const NAV_ITEMS = [
+  { href: '/', label: 'Status' },
+  { href: '/highlights', label: 'Highlights' },
+  { href: '/team', label: 'Pick Team' },
+  { href: '/fixtures', label: 'Fixtures' },
+  { href: '/scout', label: 'The Scout' },
+  { href: '/stats', label: 'Stats' },
+  { href: '/table', label: 'Table' },
+];
+
 export default function Header({ currentGameweek, loading = false, onRefresh }: HeaderProps) {
   const pathname = usePathname();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  
-  // After mounting, we can safely show the UI that depends on the theme
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
     setMounted(true);
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  
-  // Use resolvedTheme which is more reliable, and fallback during SSR
+
   const currentTheme = mounted ? (resolvedTheme || theme) : 'light';
-  
-  // Calculate active tab
-  const getActiveClass = (path: string) => {
-    return pathname === path ? 
-      'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-300 font-bold' : 
-      'text-white hover:bg-blue-600/50 dark:hover:bg-slate-700/50';
+  const isDark = currentTheme === 'dark';
+
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
   };
-  
+
   return (
-    <header className="bg-gradient-to-r from-cyan-500 to-blue-500 dark:from-slate-800 dark:to-slate-700 text-white shadow-lg">
-      {/* Logo and Title Bar */}
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            {/* Premier League Logo */}
-            <div className="w-10 h-10 mr-3 relative">
-              <Image 
-                src="/premier-league-logo.svg" 
-                alt="Premier League Logo"
-                width={40}
-                height={40}
-                className="text-white"
+    <header className={`sticky top-0 z-50 transition-all duration-300 ${
+      scrolled
+        ? 'bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-sm'
+        : 'bg-white dark:bg-slate-900'
+    }`}>
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo + Title */}
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-9 h-9 relative flex-shrink-0">
+              <Image
+                src="/premier-league-logo.svg"
+                alt="Premier League"
+                width={36}
+                height={36}
+                className="object-contain"
                 priority
               />
             </div>
-            
-            {/* Title */}
-            <h1 className="text-2xl sm:text-3xl font-bold">
-              <span className="text-white">FPL Predictor</span>
-            </h1>
-          </div>
+            <div className="hidden sm:block">
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                FPL Predictor
+              </h1>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight -mt-0.5">
+                Fantasy Premier League
+              </p>
+            </div>
+          </Link>
 
-          {/* Right side content */}
-          <div className="flex items-center gap-3">
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center gap-1">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  isActive(item.href)
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-2">
             {currentGameweek > 0 && (
-              <div className="bg-white/90 dark:bg-slate-900/90 text-blue-700 dark:text-blue-300 py-1 px-3 rounded-full text-sm font-bold shadow-sm">
+              <div className="hidden sm:block bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-1 px-3 rounded-full text-xs font-semibold shadow-sm">
                 GW {currentGameweek}
               </div>
             )}
-            
+
             {mounted && (
               <button
-                onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
-                className={`flex items-center gap-2 py-1.5 px-3 rounded-full transition-colors ${
-                  currentTheme === 'dark' 
-                    ? 'bg-slate-700 text-yellow-300 hover:bg-slate-600' 
-                    : 'bg-blue-600/50 text-white hover:bg-blue-600/70'
-                }`}
-                aria-label={currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                className="flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
               >
-                {currentTheme === 'dark' ? (
-                  <>
-                    <SunIcon className="h-4 w-4" />
-                    <span className="text-xs font-medium">Light</span>
-                  </>
+                {isDark ? (
+                  <SunIcon className="h-5 w-5" />
                 ) : (
-                  <>
-                    <MoonIcon className="h-4 w-4" />
-                    <span className="text-xs font-medium">Dark</span>
-                  </>
+                  <MoonIcon className="h-5 w-5" />
                 )}
               </button>
             )}
+
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <XMarkIcon className="h-5 w-5" />
+              ) : (
+                <Bars3Icon className="h-5 w-5" />
+              )}
+            </button>
           </div>
         </div>
       </div>
-      
-      {/* Navigation Tabs */}
-      <div className="bg-blue-600 dark:bg-slate-700 px-4">
-        <div className="container mx-auto">
-          <div className="flex overflow-x-auto scrollbar-hide">
-            <Link 
-              href="/" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/')}`}
-            >
-              Status
-            </Link>
-            <Link 
-              href="/highlights" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/highlights')}`}
-            >
-              Gameweek Highlights
-            </Link>
-            <Link 
-              href="/team" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/team')}`}
-            >
-              Pick Team
-            </Link>
-            <Link 
-              href="/fixtures" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/fixtures')}`}
-            >
-              Fixtures
-            </Link>
-            <Link 
-              href="/scout" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/scout')}`}
-            >
-              The Scout
-            </Link>
-            <Link 
-              href="/stats" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/stats')}`}
-            >
-              Stats
-            </Link>
-            <Link 
-              href="/table" 
-              className={`px-4 py-2 text-sm font-medium transition-all ${getActiveClass('/table')}`}
-            >
-              Table
-            </Link>
-          </div>
+
+      {/* Mobile Nav */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <nav className="container mx-auto px-4 py-2 space-y-1">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                  isActive(item.href)
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {currentGameweek > 0 && (
+              <div className="px-3 py-2.5 text-sm text-slate-500 dark:text-slate-400">
+                Current Gameweek: <span className="font-semibold text-blue-500">{currentGameweek}</span>
+              </div>
+            )}
+          </nav>
         </div>
-      </div>
+      )}
     </header>
   );
-} 
+}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Image from 'next/image';
-import { Team, getDirectTeamId } from '@/lib/services/fplApi';
+import { Team, getDirectTeamId, getTeamCrestUrl } from '@/lib/services/fplApi';
 import { getManagerByTeam, getManagerImageUrlByTeam } from '@/lib/utils/managerImages';
 import { getPremierLeagueTeamImageUrl } from '@/lib/utils/teamImages';
 
@@ -9,28 +9,6 @@ interface TeamDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-// Helper function to get correct team ID for crest image (same as in league table)
-const getTeamImageId = (team: Team): number => {
-  // Try to get ID from short_name using the getDirectTeamId function
-  if (team.short_name) {
-    const mappedId = getDirectTeamId(team.short_name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Try to get ID from full name
-  if (team.name) {
-    const mappedId = getDirectTeamId(team.name.toLowerCase());
-    if (mappedId) {
-      return mappedId;
-    }
-  }
-  
-  // Fallback to the team's own ID
-  return team.id;
-};
 
 export default function TeamDetailsModal({ team, isOpen, onClose }: TeamDetailsModalProps) {
   // `imageError` state was declared but not used. Removed.
@@ -65,7 +43,7 @@ export default function TeamDetailsModal({ team, isOpen, onClose }: TeamDetailsM
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-16 h-16 relative">
                   <Image 
-                    src={getPremierLeagueTeamImageUrl(getTeamImageId(team))} 
+                    src={getTeamCrestUrl(team)} 
                     alt={team.name}
                     width={64}
                     height={64}
